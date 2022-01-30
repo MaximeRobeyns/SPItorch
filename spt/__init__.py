@@ -14,5 +14,27 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
+"""spt is the main module for SPItorch, a package of inferring the properties
+of stellar populations in PyTorch.
+"""
 
 __version__ = "0.0.1"
+
+from . import config
+config.configure_logging()
+
+from rich import print
+from rich.markdown import Markdown
+from rich.padding import Padding
+
+print(Markdown('---\n'))
+test = Padding(f'''
+SPItorch
+
+Version: {__version__}
+Copyright (C) 2019-20 Mike Walmsley <walmsleymk1@gmail.com>
+Copyright (C) 2022 Maxime Robeyns <dev@maximerobeyns.com>
+        ''', (2, 8))
+print(test)
+print(Markdown('---\n'))
+
