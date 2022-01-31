@@ -21,12 +21,57 @@ targets in the Makefile.
 """
 
 import logging
+import prospect.models.priors as priors
 
-from . import logs
+from typing import Any
+
+import spt
+import spt.modelling
+
+from spt.utils import ConfigClass
+from spt.modelling import Parameter, build_obs_fn_t, build_model_fn_t,\
+        build_sps_fn_t
+from spt.filters import Filter, FilterLibrary
+
+
+class ForwardModelParams(ConfigClass):
+    """Default parameters for the forward model"""
+
+    # Observations ------------------------------------------------------------
+
+    filters: list[Filter] = FilterLibrary['des']
+    build_obs_fn: build_obs_fn_t = spt.modelling.build_obs
+
+    # Model parameters --------------------------------------------------------
+
+    # List of templates
+    param_templates: list[str] = ['parametric_sfh']
+
+    # Manually defined SedModel parameters:
+    # - parameters below with model_this=True are modelled (in Prospector & ML)
+    # - the 'name' attribute must be some FSPS name
+    # - use the 'units' to describe and notate the param (you can use LaTeX!)
+    # - the order matters for ML models: if you reorder them, retrain the model
+    params: list[Parameter] = [
+        Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
+        Parameter('mass', 6, 8, 10, priors.LogUniform, units='log_mass',
+                  disp_floor=6.),
+        Parameter('logzsol', -2, -0.5, 0.19, units='$\\log (Z/Z_\\odot)$'),
+        Parameter('dust2', 0., 0.05, 2., units='optical depth at 5500AA'),
+        Parameter('tage', 0.001, 13., 13.8, units='Age, Gyr', disp_floor=1.),
+        Parameter('tau', 0.1, 1, 100, priors.LogUniform, units='Gyr^{-1}'),
+    ]
+
+    model_kwargs: dict[str, Any] = {}
+    build_model_fn: build_model_fn_t = spt.modelling.build_model
+
+    build_sps_fn: build_sps_fn_t = spt.modelling.build_sps
+
 
 # =========================== Logging Parameters ==============================
 
-class LoggingParams(logs.LP):
+
+class LoggingParams(ConfigClass):
     """Logging parameters
 
     For reference, the logging levels are:

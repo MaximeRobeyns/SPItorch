@@ -20,58 +20,58 @@ Note that we use the Rich logging interface. Among other things, you can output
 a traceback after an exception with logging.exception("something bad happened").
 """
 
-import logging
+from typing import Any, Optional
 
-from abc import ABCMeta, abstractproperty
-from typing import Any
+from .config import LoggingParams
 
-class LP(metaclass=ABCMeta):
-    """Abstract base parameters"""
+# from abc import ABCMeta, abstractproperty
+# class LP(metaclass=ABCMeta):
+#     """Abstract base parameters"""
+#
+#     # TODO: devise a way to (simply & succinctly) define properties and their
+#     # setters / deleters...
+#     @abstractproperty
+#     def file_loc(self) -> str:
+#         return './logs.txt'
+#     @file_loc.setter
+#     def file_loc(self, val: str):
+#         self.file_loc = val
+#
+#     @abstractproperty
+#     def log_to_file(self) -> bool:
+#         return True
+#     @log_to_file.setter
+#     def log_to_file(self, val: bool):
+#         self.log_to_file = val
+#
+#     @abstractproperty
+#     def file_level(self) -> int:
+#         return logging.INFO
+#
+#     @abstractproperty
+#     def log_to_console(self) -> bool:
+#         return True
+#     @log_to_console.setter
+#     def log_to_console(self, val: bool):
+#         self.log_to_console = val
+#
+#     @abstractproperty
+#     def console_level(self) -> int:
+#         return logging.INFO
+#
+#     @abstractproperty
+#     def debug_logs(self) -> bool:
+#         return False
+#     @debug_logs.setter
+#     def debug_logs(self, val: bool):
+#         self.debug_logs = val
+#
+#     @abstractproperty
+#     def debug_level(self) -> int:
+#         return logging.DEBUG
 
-    # TODO: devise a way to (simply & succinctly) define properties and their
-    # setters / deleters...
-    @abstractproperty
-    def file_loc(self) -> str:
-        return './logs.txt'
-    @file_loc.setter
-    def file_loc(self, val: str):
-        self.file_loc = val
 
-    @abstractproperty
-    def log_to_file(self) -> bool:
-        return True
-    @log_to_file.setter
-    def log_to_file(self, val: bool):
-        self.log_to_file = val
-
-    @abstractproperty
-    def file_level(self) -> int:
-        return logging.INFO
-
-    @abstractproperty
-    def log_to_console(self) -> bool:
-        return True
-    @log_to_console.setter
-    def log_to_console(self, val: bool):
-        self.log_to_console = val
-
-    @abstractproperty
-    def console_level(self) -> int:
-        return logging.INFO
-
-    @abstractproperty
-    def debug_logs(self) -> bool:
-        return False
-    @debug_logs.setter
-    def debug_logs(self, val: bool):
-        self.debug_logs = val
-
-    @abstractproperty
-    def debug_level(self) -> int:
-        return logging.DEBUG
-
-
-def get_logging_config(p: LP) -> dict[str, Any]:
+def get_logging_config(p: LoggingParams = LoggingParams()) -> dict[str, Any]:
 
     handlers = []
     if p.log_to_file:
@@ -141,3 +141,38 @@ def get_logging_config(p: LP) -> dict[str, Any]:
             }
         }
     }
+
+
+def configure_logging(logging_params: LoggingParams = LoggingParams(),
+                      debug: Optional[bool] = None,
+                      file: Optional[bool] = None,
+                      file_loc: Optional[str] = None) -> None:
+    """Performs a one-time configuration of the root logger for the program.
+
+    Note that all the arguments are optional, and if omitted the default values
+    in config.py will be used.
+
+    Args:
+        logging_params: An instance of spt.logs.LP to customise logs outside
+            config.py
+        debug: override to output debug logs only if True; console logs only if
+            False
+        file: override to enable (True) or disable (False) file logging.
+        file_loc: location of the log file
+
+    Example:
+        >>> configure_logging(debug=True, file_loc='/tmp/debug.log')
+    """
+    if debug is not None:
+        logging_params.log_to_console = not debug
+        logging_params.debug_logs = not debug
+    if file is not None:
+        logging_params.log_to_file = file
+
+    if file_loc is not None:
+        logging_params.file_loc = file_loc
+
+    from logging.config import dictConfig
+    dictConfig(get_logging_config(logging_params))
+    # logging.info(
+    #     f'\n\n{79*"~"}\n\n\tAGNFinder\n\t{time.ctime()}\n\n{79*"~"}\n\n')
