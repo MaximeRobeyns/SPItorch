@@ -92,9 +92,14 @@ def build_obs(filters: list[Filter], galaxy: Optional[pd.Series]) -> obs_dict_t:
     return fix_obs(obs)
 
 
-@staticmethod
-def build_model(parameters: list[Parameter],
-                templates: list[str] = ['parametric_sfh']) -> SedModel:
+def combine_params(parameters: list[Parameter] = [],
+                   templates: list[str] = []) -> pdict_t:
+    """A utility method to combine template and manually specified model
+    parameters.
+
+    Returns:
+        pdict_t: [TODO:description]
+    """
 
     model_params: pdict_t = {}
 
@@ -109,6 +114,15 @@ def build_model(parameters: list[Parameter],
     # parameters:
     for p in parameters:
         model_params |= p.to_dict()
+
+    return model_params
+
+
+@staticmethod
+def build_model(parameters: list[Parameter],
+                templates: list[str] = ['parametric_sfh']) -> SedModel:
+
+    model_params = combine_params(parameters, templates)
 
     return SedModel(model_params)
 

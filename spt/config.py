@@ -21,17 +21,20 @@ targets in the Makefile.
 """
 
 import logging
+import torch as t
 import prospect.models.priors as priors
 
-from typing import Any
+from typing import Any, Optional, Type
 
 import spt
 import spt.modelling
+import spt.inference as inference
 
 from spt.utils import ConfigClass
 from spt.modelling import Parameter, build_obs_fn_t, build_model_fn_t,\
-        build_sps_fn_t
+        build_sps_fn_t, combine_params
 from spt.filters import Filter, FilterLibrary, FilterCheck
+from spt.inference import san
 
 
 class ForwardModelParams(FilterCheck, ConfigClass):
@@ -53,7 +56,7 @@ class ForwardModelParams(FilterCheck, ConfigClass):
     # - use the 'units' to describe and notate the param (you can use LaTeX!)
     # - the order matters for ML models: if you reorder them, retrain the model
     model_params: list[Parameter] = [
-        Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
+        Parameter('zred', 0., 0.1, 4., units='redshift, $z$', model_this=False),
         Parameter('mass', 6, 8, 10, priors.LogUniform, units='log_mass',
                   disp_floor=6.),
         Parameter('logzsol', -2, -0.5, 0.19, units='$\\log (Z/Z_\\odot)$'),
@@ -69,15 +72,75 @@ class ForwardModelParams(FilterCheck, ConfigClass):
     sps_kwargs: dict[str, Any] = {'zcontinuous': 1}
     build_sps_fn: build_sps_fn_t = spt.modelling.build_sps
 
+    # Simulation Parameters --------------------------------------------------
+
+    save_loc = './data/dsets/'
 
 # ============================ Inference Parameters ===========================
 
 
-class InferenceParams(ConfigClass):
+class InferenceParams(inference.InferenceParams):
+
+    # The model to use
+    model: inference.Model = san.SAN
+
+    # Train / test split ratio (offline training only)
+    split_ratio: float = 0.9
+
+    # Number of iterations bewteen logs
+    logging_frequency: int = 1000
+
+    # Filepath to hdf5 file or directory of files to use as offline dataset
+    dataset_loc: str = ForwardModelParams().save_loc
+
+    # Force re-train an existing model
+    retrain_model: bool = False
+
+    # Attempt to use checkpoints (if any) or start training from scratch. If
+    # set to False, any previous checkpoints are deleted!
+    use_existing_checkpoints: bool = True
+
+    ident: str = 'test_model'
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
     catalogue_loc: str = './data/DES_VIDEO_v1.0.1.fits'
+
+
+class SANParams(san.SANParams):
+
+    # Number of epochs to train for (offline training)
+    epochs: int = 20
+
+    batch_size: int = 1024
+
+    dtype: t.dtype = t.float32
+
+    cond_dim: int = len(ForwardModelParams().filters)
+
+    @property
+    def data_dim(self) -> int:
+        fmp = ForwardModelParams()
+        ps = combine_params(fmp.model_params, fmp.model_param_templates)
+        return sum([p['isfree'] for p in ps.values()])  # type: ignore
+
+    # shape of the network 'modules'
+    module_shape: list[int] = [512, 512]
+
+    # features passed between sequential blocks
+    sequence_features: int = 8
+
+    likelihood: Type[san.SAN_Likelihood] = san.MoG
+
+    likelihood_kwargs: Optional[dict[str, Any]] = {
+        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e04
+    }
+
+    # Whether to use batch norm
+    batch_norm: bool = True
+
+    # Optimiser (Adam) learning rate
+    opt_lr: float = 1e-4
 
 
 # =========================== Logging Parameters ==============================

@@ -50,7 +50,6 @@ class Prospector:
         self.sps = mp.build_sps_fn(**mp.sps_kwargs)
         logging.debug(f'Created sps: {self.sps}')
 
-
     def visualise_obs(self, show: bool=True, save: bool=False,
                       path: str = None):
         logging.info('[bold]Visualising observations')
