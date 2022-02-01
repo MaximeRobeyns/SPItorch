@@ -20,8 +20,17 @@ of stellar populations in PyTorch.
 
 __version__ = "0.0.1"
 
+import os
 import time
 import logging
+
+os.environ['SPS_HOME'] = os.path.split(__path__[0])[0] + '/deps/fsps'
+
+from .load_photometry import *
+from .modelling.prospector import Prospector
+
+
+# ============================================================================
 
 from rich.padding import Padding
 from rich.console import Console

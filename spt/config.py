@@ -31,10 +31,10 @@ import spt.modelling
 from spt.utils import ConfigClass
 from spt.modelling import Parameter, build_obs_fn_t, build_model_fn_t,\
         build_sps_fn_t
-from spt.filters import Filter, FilterLibrary
+from spt.filters import Filter, FilterLibrary, FilterCheck
 
 
-class ForwardModelParams(ConfigClass):
+class ForwardModelParams(FilterCheck, ConfigClass):
     """Default parameters for the forward model"""
 
     # Observations ------------------------------------------------------------
@@ -45,14 +45,14 @@ class ForwardModelParams(ConfigClass):
     # Model parameters --------------------------------------------------------
 
     # List of templates
-    param_templates: list[str] = ['parametric_sfh']
+    model_param_templates: list[str] = ['parametric_sfh']
 
     # Manually defined SedModel parameters:
     # - parameters below with model_this=True are modelled (in Prospector & ML)
     # - the 'name' attribute must be some FSPS name
     # - use the 'units' to describe and notate the param (you can use LaTeX!)
     # - the order matters for ML models: if you reorder them, retrain the model
-    params: list[Parameter] = [
+    model_params: list[Parameter] = [
         Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
         Parameter('mass', 6, 8, 10, priors.LogUniform, units='log_mass',
                   disp_floor=6.),
@@ -62,10 +62,22 @@ class ForwardModelParams(ConfigClass):
         Parameter('tau', 0.1, 1, 100, priors.LogUniform, units='Gyr^{-1}'),
     ]
 
-    model_kwargs: dict[str, Any] = {}
     build_model_fn: build_model_fn_t = spt.modelling.build_model
 
+    # SPS parameters ----------------------------------------------------------
+
+    sps_kwargs: dict[str, Any] = {'zcontinuous': 1}
     build_sps_fn: build_sps_fn_t = spt.modelling.build_sps
+
+
+# ============================ Inference Parameters ===========================
+
+
+class InferenceParams(ConfigClass):
+
+    # Ensure that the forward model description in ForwardModelParams matches
+    # the data below (e.g. number / types of filters etc)
+    catalogue_loc: str = './data/DES_VIDEO_v1.0.1.fits'
 
 
 # =========================== Logging Parameters ==============================

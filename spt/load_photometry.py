@@ -31,6 +31,9 @@ from spt.filters import Filter
 from spt.types import tensor_like
 
 
+__all__ = ["load_galaxy", "load_catalogue"] # "get_simulated_galaxy", "GalaxyDataset", "load_real_data"
+
+
 def mags_to_maggies(mags: tensor_like) -> tensor_like:
     # mags should be apparent AB magnitudes
     # The units of the fluxes need to be maggies (Jy/3631)
@@ -102,9 +105,9 @@ def load_catalogue(catalogue_loc: str, filters: list[Filter],
             df = pd.DataFrame(f[1].data)
             if compute_maggies_cols:
                 df = add_maggies_cols(df, filters)
-                # return df[maggie_required_cols]
-            # else:
-            #     return df[mag_required_cols]
+                return df[maggie_required_cols]
+            else:
+                return df[mag_required_cols]
     elif catalogue_loc.endswith('.csv'):
         df = pd.read_csv(catalogue_loc, usecols=mag_required_cols)
         assert isinstance(df, pd.DataFrame)
@@ -135,25 +138,35 @@ def load_catalogue(catalogue_loc: str, filters: list[Filter],
     return df_with_spectral_z
 
 
-def load_galaxy(catalogue_loc: str, filters: list[Filter],
+def load_galaxy(catalogue_loc: Optional[str] = None,
+                filters: Optional[list[Filter]] = None,
                 index: Optional[int] = None) -> tuple[pd.Series, int]:
     """Load a galaxy from a catalogue of real-world observations.
 
     Args:
-        catalogue_loc: the filepath to the .fits, .csv or .parquet file
-        filters: the list of filters used in the survey
+        catalogue_loc: the filepath to the .fits, .csv or .parquet file. By
+            default the catalogue configured in the InferenceParams will be
+            used.
+        filters: the list of filters used in the survey. By default the filter
+            list in the ForwardModelParams will be used.
         index: the optional index of the galaxy to return. If omitted, index is
-            random
+            random.
 
     Returns:
-        tuple[pd.Series, int]: the galaxy's photometry, and catalogue index
+        tuple[pd.Series, int]: the galaxy's photometry, and catalogue index used
     """
+    if catalogue_loc is None or filters is None:
+        from spt.config import ForwardModelParams, InferenceParams
+        catalogue_loc = InferenceParams().catalogue_loc
+        filters = ForwardModelParams().filters
+
     df = load_catalogue(catalogue_loc, filters=filters, compute_maggies_cols=False)
 
     assert df is not None
     df.reset_index(drop=True)
     if index is None:
         index = random.randint(0, len(df))
+        logging.info(f'No index specified: using random index {index}')
 
     df_series = add_maggies_cols(df.iloc[index], filters)
     assert isinstance(df_series, pd.Series)

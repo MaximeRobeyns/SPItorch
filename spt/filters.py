@@ -16,8 +16,14 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Classes and datatypes to do with Sedpy filters used for modelling"""
 
+import os
+import sedpy
+import shutil
+import logging
+
 from copy import deepcopy
-from typing import Union
+from typing import Optional, Union
+
 
 class Filter(object):
     def __init__(self, bandpass_file: str, mag_col: str, error_col: str):
@@ -192,3 +198,49 @@ FilterLibrary["reliable"] = FilterSet("reliable", _sdss + _vista + _wise),\
 FilterLibrary["all"] = FilterSet("all", _galex + _sdss + _cfht + _kids + _vista + _wise), \
                        "'All' filters (legacy)"
 
+
+
+
+class FilterCheck:
+
+    def __init__(self):
+        self.ensure_filters_installed()
+
+    filters: list[Filter] = []
+    filter_loc: Optional[str] = None
+
+    def ensure_filters_installed(self):
+        """Looks at all the bandpass files for the provided list of filters, and
+        ensures that they are in `sedpy`'s filter set.
+
+        When using a custom filter (placed in `spitorch/custom_filters`) for
+        the first time, it will be missing. This function will attempt to copy the
+        correspondingly named transmission file to sedpy's filter location.
+        """
+
+        loc = '/'.join(sedpy.__file__.split('/')[:-1]) + '/data/filters'
+        existing_filters = os.listdir(loc)
+        missing = []
+        for f in self.filters:
+            bp_file = f'{f.bandpass_file}.par'
+            if bp_file not in existing_filters:
+                missing.append(bp_file)
+
+        if len(missing):
+            if self.filter_loc is None:
+                import spt
+                self.filter_loc = os.path.split(spt.__path__[0])[0] + '/custom_filters'
+            assert self.filter_loc is not None
+            cf_contents = os.listdir(self.filter_loc)
+
+            has_errors = False
+
+            for f in missing:
+                if f not in cf_contents:
+                    logging.error(f'Could not install bandpass file [bold]{f}[/bold] from {self.filter_loc}')
+                    has_errors = True
+                    continue
+                shutil.copy(f'{self.filter_loc}/{f}', f'{loc}')
+
+            if has_errors:
+                raise ValueError("Please ensure custom filters are in the custom_filters folder.")

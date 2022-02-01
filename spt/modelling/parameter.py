@@ -19,6 +19,9 @@
 from typing import Any, Optional, Type, Union
 from prospect.models.priors import Prior, Uniform
 
+from rich import print_json
+from rich.console import Console
+
 
 __all__ = ["Parameter", "pdict_t"]
 
@@ -76,6 +79,8 @@ class Parameter:
         self.isfree = model_this
         if disp_floor is not None:
             self.disp_floor = 10**disp_floor if self.log else disp_floor
+        else:
+            self.disp_floor = None
 
         self.min = 10**range_min if self.log else range_min
         self.max = 10**range_max if self.log else range_max
@@ -85,14 +90,22 @@ class Parameter:
         self.prior = prior(mini=self.min, maxi=self.max, **prior_kwargs)
 
     def to_dict(self) -> pdict_t:
-        val: pdict_t = {}
-        val |=  {
-            'name': self.name,
+        values = {
             'units': self.units,
             'init': self.init,
             'prior': self.prior,
+            'isfree': self.isfree,
             'N': self.N,
         }
         if self.disp_floor is not None:
-            val['disp_floor']  = self.disp_floor
-        return val
+            values['disp_floor']  = self.disp_floor
+        ret = {}
+        ret[self.name] = values
+        return ret
+
+    def __repr__(self) -> str:
+        pn = str(self.prior.__class__).split('.')[-1].split("'")[0]
+        if self.isfree:
+            return f'\n\tFixed {self.name} ({self.units}) at {self.init}'
+        else:
+            return f'\n\tLearned {self.name} ({self.units}) with {pn} prior'

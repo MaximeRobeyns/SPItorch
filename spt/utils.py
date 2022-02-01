@@ -18,7 +18,7 @@
 
 import logging
 import pprint
-# from rich.pretty import pprint
+
 
 class ConfigClass():
     """ConfigClass is an abstract base class for all SPItorch configuration
@@ -44,3 +44,11 @@ class ConfigClass():
         r += '\n' + 79 * '=' + '\n\n'
         return r
 
+
+colours = {
+    "b": "#025159",  # blue(ish)
+    "o": "#F28705",  # orange
+    "lb": "#03A696", # light blue
+    "do": "#F25D27", # dark orange
+    "r": "#F20505"   # red.
+}

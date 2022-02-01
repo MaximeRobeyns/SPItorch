@@ -35,13 +35,14 @@ from spt.modelling.parameter import Parameter, pdict_t
 # Types -----------------------------------------------------------------------
 
 
-obs_dict_t = dict[str, Union[np.ndarray, list[observate.Filter], None]]
+obs_dict_t = dict[str, Union[np.ndarray, list[observate.Filter], bool, None]]
 
 build_obs_fn_t = Callable[[list[Filter], Optional[pd.Series]], obs_dict_t]
 build_sps_fn_t = Callable[[Any], SSPBasis]
 build_model_fn_t = Callable[[list[Parameter], list[str]], SedModel]
 
 
+@staticmethod
 def build_obs(filters: list[Filter], galaxy: Optional[pd.Series]) -> obs_dict_t:
     """Build a dictionary of photometry (and perhaps eventually spectra).
 
@@ -55,13 +56,16 @@ def build_obs(filters: list[Filter], galaxy: Optional[pd.Series]) -> obs_dict_t:
     Returns:
         obs_dict_t: A dictionary of observational data to use in the fit.
     """
+
     obs: obs_dict_t = {}
 
     if galaxy is not None:
         f, m, mu = load_photometry.load_galaxy_for_prospector(
             galaxy, filters)
+        obs['_fake_galaxy'] = False
     else:
         f, m, mu = load_photometry.load_dummy_galaxy(filters)
+        obs['_fake_galaxy'] = True
 
     obs['filters'] = f
     obs['maggies'] = m
@@ -88,6 +92,7 @@ def build_obs(filters: list[Filter], galaxy: Optional[pd.Series]) -> obs_dict_t:
     return fix_obs(obs)
 
 
+@staticmethod
 def build_model(parameters: list[Parameter],
                 templates: list[str] = ['parametric_sfh']) -> SedModel:
 
@@ -108,6 +113,7 @@ def build_model(parameters: list[Parameter],
     return SedModel(model_params)
 
 
+@staticmethod
 def build_sps(zcontinuous: int = 1) -> SSPBasis:
     """An extremely simple function to build an SPS model.
     """
