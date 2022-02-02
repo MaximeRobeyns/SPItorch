@@ -41,20 +41,16 @@ endif
 
 default: test
 
+dset: ## To create an offline dataset of theta-photometry samples.
+	@python spt/modelling/simulation.py
 
 mypy: ## To run mypy only (this is usually done with test / alltest)
-	@source setup.sh
 	@mypy
 
-test:
-	@which python
-
-# test: mypy  ## To run the program's fast tests (e.g. to verify an installation)
-# 	@source setup.sh
-# 	@python -m pytest -s tests
+test: mypy  ## To run the program's fast tests (e.g. to verify an installation)
+	@python -m pytest -s tests
 
 alltest: mypy ## To run all the program's tests (including slow running ones)
-	@source setup.sh
 	@python -m pytest tests --runslow
 
 docs: ## To compile the documentation (requires Docker)
@@ -68,12 +64,11 @@ install: ## To install everything (requires internet connection)
 	@./bin/install.sh
 
 kernel:  ## To setup a Jupyter kernel to run notebooks in AGNFinder virtual env
-	@source setup.sh
 	python -m ipykernel install --user --name agnvenv \
 		--display-name "SPItorch (Python 3.9)"
 
 lab: ## To start a Jupyter Lab server
-	@source setup.sh
+	@export SPS_HOME=$(shell pwd)/deps/fsps
 	jupyter lab --notebook-dir=. --ip=0.0.0.0 # --collaborative --no-browser
 
 help:

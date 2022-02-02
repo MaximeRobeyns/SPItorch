@@ -18,18 +18,16 @@
 
 import numpy as np
 import pandas as pd
-import logging
 
 from sedpy import observate
 from typing import Any, Callable, Optional, Union
 from prospect.models.sedmodel import SedModel
-from prospect.models.templates import TemplateLibrary
 from prospect.utils.obsutils import fix_obs
 from prospect.sources import SSPBasis, CSPSpecBasis
 
 from spt import load_photometry
 from spt.filters import Filter
-from spt.modelling.parameter import Parameter, pdict_t
+from spt.modelling.parameter import pdict_t
 
 
 # Types -----------------------------------------------------------------------
@@ -39,7 +37,7 @@ obs_dict_t = dict[str, Union[np.ndarray, list[observate.Filter], bool, None]]
 
 build_obs_fn_t = Callable[[list[Filter], Optional[pd.Series]], obs_dict_t]
 build_sps_fn_t = Callable[[Any], SSPBasis]
-build_model_fn_t = Callable[[list[Parameter], list[str]], SedModel]
+build_model_fn_t = Callable[[dict[str, pdict_t], Optional[list[str]]], SedModel]
 
 
 @staticmethod
@@ -92,43 +90,13 @@ def build_obs(filters: list[Filter], galaxy: Optional[pd.Series]) -> obs_dict_t:
     return fix_obs(obs)
 
 
-def combine_params(parameters: list[Parameter] = [],
-                   templates: list[str] = []) -> pdict_t:
-    """A utility method to combine template and manually specified model
-    parameters.
-
-    Returns:
-        pdict_t: [TODO:description]
-    """
-
-    model_params: pdict_t = {}
-
-    # Begin by applying the templates...
-    for t in templates:
-        if t not in TemplateLibrary._entries.keys():
-            logging.warning(f'Template library {t} is not recognized.')
-        else:
-            model_params |= TemplateLibrary[t]
-
-    # Such that we can override parameters with the manually-defined
-    # parameters:
-    for p in parameters:
-        model_params |= p.to_dict()
-
-    return model_params
-
-
 @staticmethod
-def build_model(parameters: list[Parameter],
-                templates: list[str] = ['parametric_sfh']) -> SedModel:
-
-    model_params = combine_params(parameters, templates)
-
-    return SedModel(model_params)
+def build_model(params: dict[str, pdict_t], param_order: Optional[list[str]] = None
+                ) -> SedModel:
+    return SedModel(params, param_order=param_order)
 
 
 @staticmethod
 def build_sps(zcontinuous: int = 1) -> SSPBasis:
-    """An extremely simple function to build an SPS model.
-    """
+    """An extremely simple function to build an SPS model."""
     return CSPSpecBasis(zcontinuous=zcontinuous)

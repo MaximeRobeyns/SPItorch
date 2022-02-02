@@ -31,13 +31,13 @@ import spt.modelling
 import spt.inference as inference
 
 from spt.utils import ConfigClass
-from spt.modelling import Parameter, build_obs_fn_t, build_model_fn_t,\
-        build_sps_fn_t, combine_params
+from spt.modelling import Parameter, ParamConfig
+from spt.modelling import build_obs_fn_t, build_model_fn_t, build_sps_fn_t
 from spt.filters import Filter, FilterLibrary, FilterCheck
 from spt.inference import san
 
 
-class ForwardModelParams(FilterCheck, ConfigClass):
+class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
     """Default parameters for the forward model"""
 
     # Observations ------------------------------------------------------------
@@ -56,7 +56,7 @@ class ForwardModelParams(FilterCheck, ConfigClass):
     # - use the 'units' to describe and notate the param (you can use LaTeX!)
     # - the order matters for ML models: if you reorder them, retrain the model
     model_params: list[Parameter] = [
-        Parameter('zred', 0., 0.1, 4., units='redshift, $z$', model_this=False),
+        Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
         Parameter('mass', 6, 8, 10, priors.LogUniform, units='log_mass',
                   disp_floor=6.),
         Parameter('logzsol', -2, -0.5, 0.19, units='$\\log (Z/Z_\\odot)$'),
@@ -72,9 +72,16 @@ class ForwardModelParams(FilterCheck, ConfigClass):
     sps_kwargs: dict[str, Any] = {'zcontinuous': 1}
     build_sps_fn: build_sps_fn_t = spt.modelling.build_sps
 
-    # Simulation Parameters --------------------------------------------------
 
-    save_loc = './data/dsets/'
+# ==================== Sampling (offline dset) Parameters =====================
+
+
+class SamplingParams(ConfigClass):
+
+    n_samples: int = 10**5
+    concurrency: int = 6
+    save_dir = './data/dsets/'  # Make this unique
+
 
 # ============================ Inference Parameters ===========================
 
@@ -91,7 +98,7 @@ class InferenceParams(inference.InferenceParams):
     logging_frequency: int = 1000
 
     # Filepath to hdf5 file or directory of files to use as offline dataset
-    dataset_loc: str = ForwardModelParams().save_loc
+    dataset_loc: str = SamplingParams().save_dir
 
     # Force re-train an existing model
     retrain_model: bool = False
@@ -116,13 +123,11 @@ class SANParams(san.SANParams):
 
     dtype: t.dtype = t.float32
 
+    # Dimension of observed photometry
     cond_dim: int = len(ForwardModelParams().filters)
 
-    @property
-    def data_dim(self) -> int:
-        fmp = ForwardModelParams()
-        ps = combine_params(fmp.model_params, fmp.model_param_templates)
-        return sum([p['isfree'] for p in ps.values()])  # type: ignore
+    # Number of free parameters to predict
+    data_dim: int = len(ForwardModelParams().free_params)
 
     # shape of the network 'modules'
     module_shape: list[int] = [512, 512]

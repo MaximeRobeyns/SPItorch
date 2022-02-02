@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from .parameter import Parameter
-from .builders import build_model, build_obs, build_sps
+from .parameter import Parameter, ParamConfig, pdict_t
 
-from .parameter import pdict_t
-from .builders import build_obs_fn_t, build_model_fn_t, build_sps_fn_t, combine_params
+from .builders import build_model, build_obs, build_sps
+from .builders import build_obs_fn_t, build_model_fn_t, build_sps_fn_t
+

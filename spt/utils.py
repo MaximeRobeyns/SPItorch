@@ -16,8 +16,9 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Project-wide utilities file"""
 
-import logging
+import numpy as np
 import pprint
+import logging
 
 
 class ConfigClass():
@@ -43,6 +44,57 @@ class ConfigClass():
             # r += f'{m}: {pprint(getattr(self, m), max_length=80)}\n'
         r += '\n' + 79 * '=' + '\n\n'
         return r
+
+
+def denormalise_theta(norm_theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
+    """Rescale norm_theta lying within [0, 1] range; not altering the
+    distribution of points.
+    """
+    assert norm_theta.shape[1] == limits.shape[0]
+    return limits[:,0] + (limits[:,1] - limits[:,0]) * norm_theta
+
+
+def denormalise_unif_theta(norm_theta: np.ndarray, limits: np.ndarray,
+                           log_mask: list[bool]) -> np.ndarray:
+    """Denormalise photometry (lying in the [0-1] range) to lie within the min
+    and max limits (either explicitly set in ForwardModelParams.model_params,
+    or inerred from a prior; perhaps in a template): additionally accounting
+    for logarithmic parameters.
+
+    Args:
+        norm_theta: matrix of [0, 1] normalised theta values: 1 theta sample
+            per row
+        limits: 2D array of min-max limits, given in the standard theta order.
+        log_mask: a boolean list with True where we have a logarithmic
+            parameter.
+
+    Returns:
+        denormalised theta values.
+    """
+    # assert columns of theta matrix == number of limits
+    assert norm_theta.shape[1] == limits.shape[0]
+    limits[log_mask] = np.log10(limits[log_mask, :])
+    dtheta = limits[:,0] + (limits[:,1] - limits[:,0]) * norm_theta
+
+    return np.where(np.array(log_mask), 10**np.clip(dtheta, -10, 20), dtheta)
+
+
+def normalise_theta(theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
+    """Rescale theta values to lie within [0, 1] range; not altering the
+    distribution of points within this range."""
+    assert theta.shape[1] == limits.shape[0]
+    offset = theta - limits[:, 0]
+    return offset / limits[:, 1] - limits[:, 0]
+
+
+# We would never use this type of function:
+# def normalise_unif_theta(theta: np.ndarray, limits: np.ndarray,
+#                          log_mask: list[bool]) -> np.ndarray:
+#     assert theta.shape[1] == limits.shape[0]
+#     limits[log_mask] = np.log10(limits[log_mask, :])
+#     theta[log_mask] = np.log10()
+#     offset = theta - limits[:, 0]
+#     return offset / limits[:, 1] - limits[:, 0]
 
 
 colours = {

@@ -17,14 +17,45 @@
 """A light wrapper around Prospector"""
 
 import logging
+import numpy as np
 import pandas as pd
 
-from typing import Optional
+from typing import Callable, Optional
 
 import spt.visualisation as vis
 
 from spt.types import tensor_like
 from spt.config import ForwardModelParams
+
+
+def get_forward_model(galaxy: Optional[pd.Series] = None,
+                      mp = ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
+    """Returns a (photometry-only) forward model.
+
+    Useful for predicting the photometry for a given theta sample (e.g.
+    validating ML model outputs).
+
+    Args:
+        galaxy: galaxy to initialise obs dict with. If left out, a dummy galaxy
+            will be used.
+            TODO: remove this if it has no effect on predictions.
+        mp: The forward model parameters.
+
+    Returns:
+        Callable[[np.ndarray], np.ndarray]: A callable forward model.
+    """
+    logging.info('Initialising new forward model')
+    mp = mp()
+    _obs = mp.build_obs_fn(mp.filters, galaxy)
+    _model = mp.build_model_fn(mp.all_params, mp.ordered_params)
+    _sps = mp.build_sps_fn(**mp.sps_kwargs)
+
+    def f(theta: np.ndarray) -> np.ndarray:
+        _, phot, _ = _model.sed(theta, obs=_obs, sps=_sps)
+        return phot
+
+    logging.info('Forward model created')
+    return f
 
 
 class Prospector:
@@ -44,11 +75,40 @@ class Prospector:
         self.obs = mp.build_obs_fn(mp.filters, galaxy)
         logging.debug(f'Created obs dict: {self.obs}')
 
-        self.model = mp.build_model_fn(mp.model_params, mp.model_param_templates)
+        self.model = mp.build_model_fn(mp.all_params, mp.ordered_free_params)
         logging.debug(f'Created model: {self.model}')
 
         self.sps = mp.build_sps_fn(**mp.sps_kwargs)
         logging.debug(f'Created sps: {self.sps}')
+
+    def __call__(self, theta: Optional[np.ndarray] = None,
+                 ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute spectroscopy and photometry for the (optional)
+        parameter array.
+
+        Args:
+            theta: An optional array of (denormalised)
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: spectroscopy, photoemtry
+        """
+        if theta is None:
+            theta = self.model.theta
+        spec, phot, _ = self.model.sed(theta, obs=self.obs, sps=self.sps)
+        # TODO check that these are correct
+        return spec, phot
+
+    # def photometry(self, theta: Optional[np.ndarray] = self.model.theta
+    #               ) -> np.ndarray:
+    #     """Return the simulated photometric observations
+
+    #     Args:
+    #         theta: [TODO:description]
+
+    #     Returns:
+    #         np.ndarray: [TODO:description]
+    #     """
+    #     raise NotImplementedError
 
     def visualise_obs(self, show: bool=True, save: bool=False,
                       path: str = None):

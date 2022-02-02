@@ -16,11 +16,12 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Classes to describe modelling parameters"""
 
+from abc import abstractmethod
+import logging
+
 from typing import Any, Optional, Type, Union
 from prospect.models.priors import Prior, Uniform
-
-from rich import print_json
-from rich.console import Console
+from prospect.models.templates import TemplateLibrary
 
 
 __all__ = ["Parameter", "pdict_t"]
@@ -89,19 +90,18 @@ class Parameter:
         # the prospect.models.priors don't check for redundant kwargs...
         self.prior = prior(mini=self.min, maxi=self.max, **prior_kwargs)
 
-    def to_dict(self) -> pdict_t:
+    def to_dict(self) -> dict[str, pdict_t]:
         values = {
             'units': self.units,
             'init': self.init,
             'prior': self.prior,
             'isfree': self.isfree,
             'N': self.N,
+            '_is_log': self.log,
         }
         if self.disp_floor is not None:
             values['disp_floor']  = self.disp_floor
-        ret = {}
-        ret[self.name] = values
-        return ret
+        return {self.name: values}
 
     def __repr__(self) -> str:
         pn = str(self.prior.__class__).split('.')[-1].split("'")[0]
@@ -109,3 +109,93 @@ class Parameter:
             return f'\n\tFixed {self.name} ({self.units}) at {self.init}'
         else:
             return f'\n\tLearned {self.name} ({self.units}) with {pn} prior'
+
+
+class ParamConfig:
+    """Base class for forward model parameters"""
+
+    @property
+    @abstractmethod
+    def model_param_templates(self) -> list[str]:
+        return []
+
+    @property
+    @abstractmethod
+    def model_params(self) -> list[Parameter]:
+        return []
+
+    @property
+    def all_params(self) -> dict[str, pdict_t]:
+        """A utility method to combine template and manually specified model
+        parameters.
+
+        Returns:
+            pdict_t: The combined model parameters.
+        """
+
+        tmp_params: dict[str, pdict_t] = {}
+
+        # Begin by applying the templates...
+        for t in self.model_param_templates:
+            if t not in TemplateLibrary._entries.keys():
+                logging.warning(f'Template library {t} is not recognized.')
+            else:
+                tmp_params |= TemplateLibrary[t]
+
+        # Such that we can override parameters with the manually-defined
+        # parameters:
+        for p in self.model_params:
+            tmp_params |= p.to_dict()
+
+        return tmp_params
+
+    @property
+    def free_params(self) -> dict[str, pdict_t]:
+        fp: dict[str, pdict_t] = {}
+        ap = self.all_params
+        for k, v in zip(ap.keys(), ap.values()):
+            if v['isfree']:
+                fp |= {k: v}
+        return fp
+
+    @property
+    def ordered_params(self) -> list[str]:
+        params = list(self.all_params.keys())
+        params.sort()
+        return params
+
+    @property
+    def ordered_free_params(self) -> list[str]:
+        # fp = [p[0] for p in self.all_params.items() if p[1]['isfree']].sort()
+        fp = list(self.free_params.keys())
+        fp.sort()
+        return fp
+
+    def free_param_lims(self) -> list[tuple[float, float]]:
+        lims: list[tuple[float, float]] = []
+        fp = self.free_params
+        ofp = self.ordered_free_params
+        for p in ofp:
+            prior = fp[p]['prior']
+            assert isinstance(prior, Prior)
+            if 'mini' not in prior.params.keys() or \
+               'maxi' not in prior.params.keys():
+                logging.error('Free parameters must have a speciried range')
+                raise RuntimeError((
+                    f'Could not find "mini" and "maxi" attributes of free '
+                    'parameter prior {prior}'))
+            lims.append((prior.params['mini'], prior.params['maxi']))
+        return lims
+
+    def is_log(self) -> list[bool]:
+        # Note: we do not try to 'auto detect' whether a template parameter is
+        # logarithmic e.g. from its name. Only manually defined parameters will
+        # be considered.
+
+        log = []
+        fp, ofp = self.free_params, self.ordered_free_params
+        for p in ofp:
+            if '_is_log' in fp[p]:
+                log.append(fp[p]['_is_log'])
+            # Otherwise, this must be a template parameter. Skip it.
+        return log

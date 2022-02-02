@@ -198,9 +198,6 @@ FilterLibrary["reliable"] = FilterSet("reliable", _sdss + _vista + _wise),\
 FilterLibrary["all"] = FilterSet("all", _galex + _sdss + _cfht + _kids + _vista + _wise), \
                        "'All' filters (legacy)"
 
-
-
-
 class FilterCheck:
 
     def __init__(self):
