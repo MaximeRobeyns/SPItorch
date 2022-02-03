@@ -20,12 +20,18 @@ import logging
 import numpy as np
 import pandas as pd
 
-from typing import Callable, Optional
+from rich.console import Console
+from typing import Any, Callable, Optional, Union
+from prospect.fitting import fit_model, lnprobfn
 
 import spt.visualisation as vis
 
-from spt.types import tensor_like
-from spt.config import ForwardModelParams
+from spt.types import tensor_like, FittingMethod
+from spt.config import ForwardModelParams, FittingParams, EMCEEParams,\
+                       DynestyParams
+
+
+prun_params_t = dict[str, Union[int, bool, float, None, list[int], str]]
 
 
 def get_forward_model(galaxy: Optional[pd.Series] = None,
@@ -68,18 +74,24 @@ class Prospector:
             galaxy: an optional galaxy. If None, a dummy galaxy will be used to
                 make prospector happy (e.g. for sampling).
         """
-        logging.debug('Initialising prospector class')
+        logging.info('Initialising prospector class')
 
         mp = mp()
 
         self.obs = mp.build_obs_fn(mp.filters, galaxy)
+        logging.info(f'Created obs dict with filters\n{[f.name for f in self.obs["filters"]]}')
         logging.debug(f'Created obs dict: {self.obs}')
 
         self.model = mp.build_model_fn(mp.all_params, mp.ordered_params)
+        logging.info(f'Created model:\n\tfree params {self.model.free_params},\n\tfixed: {self.model.fixed_params})')
         logging.debug(f'Created model: {self.model}')
 
+        logging.info(f'Creating sps object...')
         self.sps = mp.build_sps_fn(**mp.sps_kwargs)
+        logging.info(f'Done.')
         logging.debug(f'Created sps: {self.sps}')
+
+        self.has_fit: bool = False
 
     def __call__(self, theta: Optional[np.ndarray] = None,
                  ) -> tuple[np.ndarray, np.ndarray]:
@@ -98,7 +110,38 @@ class Prospector:
         # TODO check that these are correct
         return spec, phot
 
+    def __repr__(self) -> str:
+        c = Console(record=True, width=80)
+        c.begin_capture()
+        c.rule('Prospector Instance')
+        c.print('Model is:')
+        c.print(self.model)
+        c.print(f'Filters:\n{[f.name for f in self.obs["filters"]]}')
+        c.rule()
+        return c.end_capture()
 
+    def numerical_fit(self, fp: FittingParams = FittingParams()) -> list[Any]:
+        """'Burn in' for layer MCMC sampling using a numerical method.
+
+        This initialisation could also be done by a machine learning algorithm.
+        """
+        logging.info(f'Running {fp.min_method.value} fitting')
+        if fp.min_method == FittingMethod.ML:
+            raise NotImplementedError("MCMC initialisation with ML results not yet implemented.")
+
+        run_params: prun_params_t = {'dynesty': False, 'emcee': False, 'optimize': True}
+        run_params["min_method"] = fp.min_method.value
+        run_params["nmin"] = fp.min_n
+
+        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn, **run_params)
+        (results, time) = output['optimization']
+        logging.info(f'Fitting took {time:.2f}s')
+        assert results is not None
+        return results
+
+    def mcmc_fit(self):
+        """Runs MCMC method to update the value of self.model.theta
+        """
 
     # def photometry(self, theta: Optional[np.ndarray] = self.model.theta
     #               ) -> np.ndarray:
@@ -139,10 +182,6 @@ class Prospector:
             path: where to save the plot.
         """
         logging.info('[bold]Visualising model predictions')
-
-        # If theta is not specified, get the current model's theta values:
-        if theta is None:
-            theta = self.model.theta.copy()
 
         if not no_obs and self.obs['_fake_galaxy']:
             logging.warning((

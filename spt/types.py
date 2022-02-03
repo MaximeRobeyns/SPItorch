@@ -20,22 +20,8 @@ import numpy as np
 import torch as t
 import pandas as pd
 
-from sedpy import observate
-from typing import Callable, Optional, Union
-from prospect.models.priors import Prior
-
-# Note: to avoid circular imports, do not import any spt.* modules here.
-
-# Type for CPz model parameter description
-pdict_t = dict[str, Union[float, bool, str, Prior]]
-
-# Remove if unused.
-# # Type for the limits on the free parameters.
-# paramspace_t = dict[str, tuple[float, float]]
-#
-# # Type for prospector run parameters
-# prun_params_t = dict[str, Union[int, bool, float, None, list[int], str]]
-
+from enum import Enum
+from typing import Union
 
 # Neural network related ------------------------------------------------------
 
@@ -48,21 +34,14 @@ DistParams = list[Tensor]
 tensor_like = Union[np.ndarray, Tensor, pd.Series, pd.DataFrame]
 
 
-# Inference Procedures --------------------------------------------------------
+class MCMCMethod(Enum):
+    EMCEE = 'EMCEE'
+    Dynesty = 'Dynesty'
 
 
-class MCMCMethod():
-    def __init__(self) -> None:
-        self.name = 'MCMC'
+class FittingMethod(Enum):
+    LM = 'lm'  # Levenberg-Marquardt
+    Powell = 'powell'
+    ML = 'ml'  # use machine learning predictions to initialise theta.
 
-    def __repr__(self) -> str:
-        return self.name
-
-class EMCEE(MCMCMethod):
-    def __init__(self) -> None:
-        self.name = 'EMCEE'
-
-class Dynesty(MCMCMethod):
-    def __init__(self) -> None:
-        self.name = 'Dynesty'
 

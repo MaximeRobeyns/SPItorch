@@ -31,10 +31,11 @@ import spt.modelling
 import spt.inference as inference
 
 from spt.utils import ConfigClass
-from spt.modelling import Parameter, ParamConfig
-from spt.modelling import build_obs_fn_t, build_model_fn_t, build_sps_fn_t
+from spt.types import MCMCMethod, FittingMethod
 from spt.filters import Filter, FilterLibrary, FilterCheck
 from spt.inference import san
+from spt.modelling import Parameter, ParamConfig
+from spt.modelling import build_obs_fn_t, build_model_fn_t, build_sps_fn_t
 
 
 class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
@@ -117,6 +118,35 @@ class InferenceParams(inference.InferenceParams):
     catalogue_loc: str = './data/DES_VIDEO_v1.0.1.fits'
 
 
+# Prospector fitting parameters -----------------------------------------------
+
+
+class FittingParams(ConfigClass):
+    """
+    Parameters controlling an optional numerical optimisation procedure to
+    initialise the model parameters to sensible values / 'burn' them in in
+    preparation for later MCMC sampling.
+    """
+    # Whether or not to do the fitting in the first place?
+    do_fitting: bool = True
+
+    min_method: FittingMethod = FittingMethod.LM
+
+    # Start minimisation at n different places to guard against local minima:
+    min_n: int = 2
+
+
+class EMCEEParams(ConfigClass):
+    pass
+
+
+class DynestyParams(ConfigClass):
+    pass
+
+
+# Machine learning inference --------------------------------------------------
+
+
 class SANParams(san.SANParams):
 
     # Number of epochs to train for (offline training)
@@ -149,20 +179,6 @@ class SANParams(san.SANParams):
 
     # Optimiser (Adam) learning rate
     opt_lr: float = 1e-4
-
-
-class MCMCParams():
-    """Parameters for running comparison MCMC inference; closely coupled to
-    Prospector"""
-
-    # Attempt to initialise our model reasonably close to the data by using
-    # numerical minimisation methods: Levenberg-Marquardt ('lm') or Powell
-    num_min: bool = True
-    min_method: str = 'lm'  # 'powell'
-    # Start minimisation at n different places to guard against local minima:
-    min_n: int = 2
-
-    # EMCEE parameters:
 
 
 # =========================== Logging Parameters ==============================

@@ -24,51 +24,7 @@ from typing import Any, Optional
 
 from .config import LoggingParams
 
-# from abc import ABCMeta, abstractproperty
-# class LP(metaclass=ABCMeta):
-#     """Abstract base parameters"""
-#
-#     # TODO: devise a way to (simply & succinctly) define properties and their
-#     # setters / deleters...
-#     @abstractproperty
-#     def file_loc(self) -> str:
-#         return './logs.txt'
-#     @file_loc.setter
-#     def file_loc(self, val: str):
-#         self.file_loc = val
-#
-#     @abstractproperty
-#     def log_to_file(self) -> bool:
-#         return True
-#     @log_to_file.setter
-#     def log_to_file(self, val: bool):
-#         self.log_to_file = val
-#
-#     @abstractproperty
-#     def file_level(self) -> int:
-#         return logging.INFO
-#
-#     @abstractproperty
-#     def log_to_console(self) -> bool:
-#         return True
-#     @log_to_console.setter
-#     def log_to_console(self, val: bool):
-#         self.log_to_console = val
-#
-#     @abstractproperty
-#     def console_level(self) -> int:
-#         return logging.INFO
-#
-#     @abstractproperty
-#     def debug_logs(self) -> bool:
-#         return False
-#     @debug_logs.setter
-#     def debug_logs(self, val: bool):
-#         self.debug_logs = val
-#
-#     @abstractproperty
-#     def debug_level(self) -> int:
-#         return logging.DEBUG
+from rich.console import Console
 
 
 def get_logging_config(p: LoggingParams = LoggingParams()) -> dict[str, Any]:
@@ -98,10 +54,11 @@ def get_logging_config(p: LoggingParams = LoggingParams()) -> dict[str, Any]:
             'console': {
                 'class': 'rich.logging.RichHandler',
                 'level': p.console_level,
+                'console': Console(width=80, soft_wrap=True, tab_size=2),
                 'show_time': False,
                 'omit_repeated_times': True,
                 'show_level': True,
-                'show_path': True,
+                'show_path': False,
                 'enable_link_path': True,
                 'markup': True,
                 'rich_tracebacks': False,

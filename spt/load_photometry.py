@@ -138,19 +138,20 @@ def load_catalogue(catalogue_loc: str, filters: list[Filter],
     return df_with_spectral_z
 
 
-def load_galaxy(catalogue_loc: Optional[str] = None,
+def load_galaxy(index: Optional[int] = None,
+                catalogue_loc: Optional[str] = None,
                 filters: Optional[list[Filter]] = None,
-                index: Optional[int] = None) -> tuple[pd.Series, int]:
+                ) -> tuple[pd.Series, int]:
     """Load a galaxy from a catalogue of real-world observations.
 
     Args:
+        index: the optional index of the galaxy to return. If omitted, index is
+            random. Must be within range.
         catalogue_loc: the filepath to the .fits, .csv or .parquet file. By
             default the catalogue configured in the InferenceParams will be
             used.
         filters: the list of filters used in the survey. By default the filter
             list in the ForwardModelParams will be used.
-        index: the optional index of the galaxy to return. If omitted, index is
-            random.
 
     Returns:
         tuple[pd.Series, int]: the galaxy's photometry, and catalogue index used

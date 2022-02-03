@@ -17,7 +17,6 @@
 """Run simulation with MPI"""
 
 import os
-import sys
 import h5py
 import numpy as np
 import signal
@@ -25,7 +24,7 @@ import logging
 
 from time import sleep
 from typing import Union, Optional
-from threading import Thread, Lock
+from threading import Lock
 from rich.progress import Progress
 from multiprocessing import Manager, Process
 
@@ -151,8 +150,6 @@ if __name__ == '__main__':
                 all_status = mpi_comm.gather((0, status[0], status[1]))
                 assert isinstance(all_status, list)
 
-                import rich.markup
-
                 for s in all_status:
                     assert len(s) == 3, "Bad status update"
                     tidx, ts, tn = s
@@ -192,7 +189,6 @@ if __name__ == '__main__':
 
             # return the status. Note, we may send DONE multiple times.
             mpi_comm.gather((idx, status[0], status[1]))
-            # mpi_comm.gather((idx, status.value, status.n))
 
         if p.is_alive():
             p.terminate()

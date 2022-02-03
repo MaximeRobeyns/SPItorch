@@ -20,7 +20,7 @@ of stellar populations in PyTorch.
 
 __version__ = "0.0.1"
 
-import os
+import os, sys
 
 os.environ['SPS_HOME'] = os.path.split(__path__[0])[0] + '/deps/fsps'
 
@@ -31,3 +31,7 @@ from .utils import splash_screen
 from spt.logs import configure_logging
 configure_logging()
 
+# If user is running in interactive tty, print splash screen
+# Will not print when used as library import, which would get annoying.
+if os.isatty(sys.stdout.fileno()):
+    splash_screen()

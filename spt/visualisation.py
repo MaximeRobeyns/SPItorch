@@ -128,8 +128,8 @@ def _get_bounds(obs: obs_dict_t, wspec: Optional[np.ndarray] = None,
 
 def _style_plot(fig: plt.Figure, ax: plt.Axes, xmin: float, xmax: float,
                 ymin: float, ymax: float):
-    ax.set_xlabel('Wavelength [A]', size=20)
-    ax.set_ylabel('Flux Density [Maggies]', size=20)
+    ax.set_xlabel('Wavelength [A]', size=15)
+    ax.set_ylabel('Flux Density [Maggies]', size=15)
     ax.set_xlim([xmin, xmax])
     ax.set_ylim([ymin, ymax])
     ax.set_xscale("log")
@@ -163,7 +163,7 @@ def visualise_obs(obs: obs_dict_t, show: bool = True, save: bool = False,
     _plot_filters(obs, *ybounds)
 
     fig.text(0.06, 1.035, s="Observed Photometry", fontfamily='sans-serif',
-             fontweight='demibold', fontsize=25)
+             fontweight='demibold', fontsize=19)
     fig.text(0.06, 1.007, s=f'Filters: {str(obs["filternames"])}',
              fontfamily='sans-serif', fontweight='normal', fontsize=10,
              alpha=0.7)
@@ -235,7 +235,7 @@ def visualise_model(model: SedModel, sps: SSPBasis,
                     markeredgewidth=3)
 
     fig.text(0.07, 1.035, s="Modelled Photometry", fontfamily='sans-serif',
-             fontweight='demibold', fontsize=25)
+             fontweight='demibold', fontsize=19)
     fig.text(0.07, 1.007, s=f'{_describe_model(model)}',
              fontfamily='sans-serif', fontweight='normal', fontsize=10,
              alpha=0.7)

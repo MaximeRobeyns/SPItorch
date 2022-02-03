@@ -87,7 +87,7 @@ def normalise_theta(theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
     return offset / limits[:, 1] - limits[:, 0]
 
 
-# We would never use this type of function:
+# We would never use this type of function...
 # def normalise_unif_theta(theta: np.ndarray, limits: np.ndarray,
 #                          log_mask: list[bool]) -> np.ndarray:
 #     assert theta.shape[1] == limits.shape[0]
