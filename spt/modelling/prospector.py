@@ -35,7 +35,7 @@ from spt.config import ForwardModelParams, FittingParams, EMCEEParams,\
 prun_params_t = dict[str, Union[int, bool, float, None, list[int], str, Any]]
 
 
-def get_forward_model(galaxy: Optional[pd.Series] = None,
+def get_forward_model(observtion: Optional[pd.Series] = None,
                       mp = ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
     """Returns a (photometry-only) forward model.
 
@@ -43,7 +43,7 @@ def get_forward_model(galaxy: Optional[pd.Series] = None,
     validating ML model outputs).
 
     Args:
-        galaxy: galaxy to initialise obs dict with. If left out, a dummy galaxy
+        observtion: observtion to initialise obs dict with. If left out, a dummy observtion
             will be used.
             TODO: remove this if it has no effect on predictions.
         mp: The forward model parameters.
@@ -53,7 +53,7 @@ def get_forward_model(galaxy: Optional[pd.Series] = None,
     """
     logging.info('Initialising new forward model')
     mp = mp()
-    _obs = mp.build_obs_fn(mp.filters, galaxy)
+    _obs = mp.build_obs_fn(mp.filters, observtion)
     _model = mp.build_model_fn(mp.all_params, mp.ordered_params)
     _sps = mp.build_sps_fn(**mp.sps_kwargs)
 
@@ -67,21 +67,21 @@ def get_forward_model(galaxy: Optional[pd.Series] = None,
 
 class Prospector:
 
-    def __init__(self, galaxy: Optional[pd.Series] = None, mp = ForwardModelParams):
+    def __init__(self, observtion: Optional[pd.Series] = None, mp = ForwardModelParams):
         """Construct a prospector instance for simulation and MCMC-based
         parameter inference.
 
         Args:
-            galaxy: an optional galaxy. If None, a dummy galaxy will be used to
+            observtion: an optional observtion. If None, a dummy observtion will be used to
                 make prospector happy (e.g. for sampling).
         """
         logging.info('Initialising prospector class')
 
         mp = mp()
-        if galaxy is not None and 'idx' in galaxy:
-            self.index = int(galaxy.idx)
+        if observtion is not None and 'idx' in observtion:
+            self.index = int(observtion.idx)
 
-        self.obs = mp.build_obs_fn(mp.filters, galaxy)
+        self.obs = mp.build_obs_fn(mp.filters, observtion)
         logging.info(f'Created obs dict with filters\n{[f.name for f in self.obs["filters"]]}')
         logging.debug(f'Created obs dict: {self.obs}')
 
@@ -126,8 +126,8 @@ class Prospector:
 
     def _fake_obs_warning(self, method: str = 'prospector method'):
             logging.warning((
-                f'Calling {method} with fake galaxy observations.\n'
-                'Please construct the Prospector object with a real galaxy '
+                f'Calling {method} with a fake observation.\n'
+                'Please construct the Prospector object with a real observtion '
                 'instead.'))
 
     def set_theta(self, theta: np.ndarray):
@@ -158,8 +158,9 @@ class Prospector:
     def emcee_fit(self, ep: EMCEEParams = EMCEEParams()):
         """Runs MCMC method to update the value of self.model.theta
         """
-        logging.info(f'Running EMCEE fitting')
-        if self.obs['_fake_galaxy']:
+        logging.info(f'Running EMCEE fitting with parameters:')
+        logging.info(ep)
+        if self.obs['_fake_observtion']:
             self._fake_obs_warning('emcee_fit')
 
         run_params: prun_params_t = {'dynesty': False, 'emcee': True}
@@ -178,7 +179,7 @@ class Prospector:
             logging.info('running this for some reason')
             from schwimmbad.mpi import MPIPool
             run_params['pool'] = MPIPool()
-        else:
+        elif ep.pool == ConcurrencyMethod.native:
             from multiprocessing import Pool
             run_params['pool'] = Pool(ep.workers)
 
@@ -198,8 +199,9 @@ class Prospector:
 
     def dynesty_fit(self, dp: DynestyParams = DynestyParams()):
         """Runs Dynesty (nested) sampling to update the value of self.model.theta"""
-        logging.info('Running Dynesty fitting')
-        if self.obs['_fake_galaxy']:
+        logging.info('Running Dynesty fitting with parameters:')
+        logging.info(dp)
+        if self.obs['_fake_observtion']:
             self._fake_obs_warning('dynesty_fit')
 
         run_params: prun_params_t = {'dynesty': True, 'emcee': False}
@@ -246,7 +248,7 @@ class Prospector:
     def visualise_obs(self, show: bool=False, save: bool=True,
                       path: str = './results/obs.png'):
         logging.info('[bold]Visualising observations')
-        if self.obs['_fake_galaxy']:
+        if self.obs['_fake_observtion']:
             self._fake_obs_warning('visualise_obs')
         vis.visualise_obs(self.obs, show, save, path)
 
@@ -268,7 +270,7 @@ class Prospector:
         """
         logging.info('[bold]Visualising model predictions')
 
-        if not no_obs and self.obs['_fake_galaxy']:
+        if not no_obs and self.obs['_fake_observtion']:
             self._fake_obs_warning('visualise_model')
 
         vis.visualise_model(self.model, self.sps, theta,

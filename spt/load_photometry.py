@@ -31,7 +31,7 @@ from spt.filters import Filter
 from spt.types import tensor_like
 
 
-__all__ = ["load_galaxy", "load_catalogue"] # "get_simulated_galaxy", "GalaxyDataset", "load_real_data"
+__all__ = ["load_observation", "load_catalogue"] # "get_simulated_observation", "GalaxyDataset", "load_real_data"
 
 
 def mags_to_maggies(mags: tensor_like) -> tensor_like:
@@ -51,7 +51,7 @@ def add_maggies_cols(input_df: Union[pd.DataFrame, pd.Series],
     """Add maggies column to calalogue of real galaxies.
 
     Args:
-        input_df: either full dataframe galaxy catalogue, or single row (pd.Series)
+        input_df: either full dataframe observation catalogue, or single row (pd.Series)
         fset: the FilterSet used to make the observations.
     """
     df = input_df.copy()  # we don't modify the df inplace
@@ -138,14 +138,14 @@ def load_catalogue(catalogue_loc: str, filters: list[Filter],
     return df_with_spectral_z
 
 
-def load_galaxy(index: Optional[int] = None,
+def load_observation(index: Optional[int] = None,
                 catalogue_loc: Optional[str] = None,
                 filters: Optional[list[Filter]] = None,
                 ) -> pd.Series:
-    """Load a galaxy from a catalogue of real-world observations.
+    """Load an observation from a catalogue of real-world observations.
 
     Args:
-        index: the optional index of the galaxy to return. If omitted, index is
+        index: the optional index of the observation to return. If omitted, index is
             random. Must be within range.
         catalogue_loc: the filepath to the .fits, .csv or .parquet file. By
             default the catalogue configured in the InferenceParams will be
@@ -154,7 +154,7 @@ def load_galaxy(index: Optional[int] = None,
             list in the ForwardModelParams will be used.
 
     Returns:
-        tuple[pd.Series, int]: the galaxy's photometry, and catalogue index used
+        tuple[pd.Series, int]: the observation's photometry, and catalogue index used
     """
     if catalogue_loc is None or filters is None:
         from spt.config import ForwardModelParams, InferenceParams
@@ -175,44 +175,44 @@ def load_galaxy(index: Optional[int] = None,
     return df_series
 
 
-# TODO port get_simulated_galaxy
-# TODO port GalaxyDataset
+# TODO port get_simulated_observation
+# TODO port observationDataset
 # TODO port load_real_data
 
 
-def filter_has_valid_data(f: Filter, galaxy: pd.Series) -> bool:
-    """Ensures that galaxy data series has maggie cols"""
-    filter_value = galaxy[f.maggie_col]
+def filter_has_valid_data(f: Filter, observation: pd.Series) -> bool:
+    """Ensures that observation data series has maggie cols"""
+    filter_value = observation[f.maggie_col]
     assert isinstance(filter_value, np.floating) or isinstance(filter_value, float)
     valid_value = not pd.isnull(filter_value) \
                   and filter_value > -98 \
                   and filter_value < 98
-    filter_error = galaxy[f.maggie_error_col]
+    filter_error = observation[f.maggie_error_col]
     assert isinstance(filter_error, np.floating) or isinstance(filter_error, float)
     valid_error = not pd.isnull(filter_error) \
                   and filter_error > 0  # <0 if -99 (unknown) or -1 (only upper bound)
     return bool(valid_value and valid_error)
 
 
-def load_maggies_to_array(galaxy: pd.Series, filters: list[Filter]
+def load_maggies_to_array(observation: pd.Series, filters: list[Filter]
                          ) -> tuple[np.ndarray, np.ndarray]:
-    maggies = np.array([galaxy[f.maggie_col] for f in filters])
-    maggies_unc = np.array([galaxy[f.maggie_error_col] for f in filters])
+    maggies = np.array([observation[f.maggie_col] for f in filters])
+    maggies_unc = np.array([observation[f.maggie_error_col] for f in filters])
     return maggies, maggies_unc
 
 
-def load_galaxy_for_prospector(
-        galaxy: pd.Series, filter_sel: list[Filter]
+def load_observation_for_prospector(
+        observation: pd.Series, filter_sel: list[Filter]
     ) -> tuple[list[observate.Filter], np.ndarray, np.ndarray]:
-    valid_filters = [f for f in filter_sel if filter_has_valid_data(f, galaxy)]
-    maggies, maggies_unc = load_maggies_to_array(galaxy, valid_filters)
+    valid_filters = [f for f in filter_sel if filter_has_valid_data(f, observation)]
+    maggies, maggies_unc = load_maggies_to_array(observation, valid_filters)
     filters = observate.load_filters([f.bandpass_file for f in valid_filters])
     return filters, maggies, maggies_unc
 
 
-def load_dummy_galaxy(filter_sel: list[Filter]
+def load_dummy_observation(filter_sel: list[Filter]
         ) -> tuple[list[observate.Filter], np.ndarray, np.ndarray]:
-    """Loads a dummy galaxy for prospector. This is useful for running forward
+    """Loads a dummy observation for prospector. This is useful for running forward
     models to simulate theta -> photometry mappings.
 
     Args:

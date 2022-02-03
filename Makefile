@@ -74,7 +74,7 @@ kernel:  ## To setup a Jupyter kernel to run notebooks in AGNFinder virtual env
 
 lab: ## To start a Jupyter Lab server
 	@export SPS_HOME=$(shell pwd)/deps/fsps
-	jupyter lab --notebook-dir=. --ip=0.0.0.0 # --collaborative --no-browser
+	jupyter lab --notebook-dir=. --ip=0.0.0.0  --port 8881 # --collaborative --no-browser
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

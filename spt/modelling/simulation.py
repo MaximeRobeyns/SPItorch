@@ -25,7 +25,7 @@ from copy import deepcopy
 from rich.progress import Progress
 from typing import Type
 
-from spt.load_photometry import load_galaxy
+from spt.load_photometry import load_observation
 from multiprocessing import Process, Queue
 
 from spt.config import ForwardModelParams, SamplingParams
@@ -34,15 +34,15 @@ from spt.config import ForwardModelParams, SamplingParams
 class Simulator:
 
     def __init__(self, fmp: Type[ForwardModelParams] = ForwardModelParams,
-                 use_galaxy: bool = True):
+                 use_observation: bool = True):
 
         mp = fmp()
-        g = None
-        if use_galaxy:
+        o = None
+        if use_observation:
             # Uses catalogue in InferenceParams
-            g = load_galaxy(filters=mp.filters)
+            o = load_observation(filters=mp.filters)
 
-        self.obs = mp.build_obs_fn(mp.filters, g)
+        self.obs = mp.build_obs_fn(mp.filters, o)
         self.model = mp.build_model_fn(mp.all_params, mp.ordered_params)
         self.sps = mp.build_sps_fn(**mp.sps_kwargs)
 
@@ -136,7 +136,7 @@ if __name__ == '__main__':
         logging.info(f'Created results directory {sp.save_dir}')
 
     logging.info('[bold]Setting up forward model')
-    sim = Simulator(ForwardModelParams, sp.galaxy)
+    sim = Simulator(ForwardModelParams, sp.observation)
 
     # t = progress.add_task('[bold]Loading SPS libraries', start=False, total=10)
 

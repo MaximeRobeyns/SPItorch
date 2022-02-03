@@ -41,14 +41,14 @@ build_model_fn_t = Callable[[dict[str, pdict_t], Optional[list[str]]], SedModel]
 
 
 @staticmethod
-def build_obs(filters: list[Filter], galaxy: Optional[pd.Series]) -> obs_dict_t:
+def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_dict_t:
     """Build a dictionary of photometry (and perhaps eventually spectra).
 
     Args:
         filters: The SPS filter list to use
-        galaxy: An optional galaxy to use while inferring parameters with MCMC
+        observation: An optional observation to use while inferring parameters with MCMC
             and other sampling methods. When we only want to use Prospector for
-            the forward models, we can leave it out and a 'dummy' galaxy will
+            the forward models, we can leave it out and a 'dummy' observation will
             be created.
 
     Returns:
@@ -57,13 +57,13 @@ def build_obs(filters: list[Filter], galaxy: Optional[pd.Series]) -> obs_dict_t:
 
     obs: obs_dict_t = {}
 
-    if galaxy is not None:
-        f, m, mu = load_photometry.load_galaxy_for_prospector(
-            galaxy, filters)
-        obs['_fake_galaxy'] = False
+    if observation is not None:
+        f, m, mu = load_photometry.load_observation_for_prospector(
+            observation, filters)
+        obs['_fake_observation'] = False
     else:
-        f, m, mu = load_photometry.load_dummy_galaxy(filters)
-        obs['_fake_galaxy'] = True
+        f, m, mu = load_photometry.load_dummy_observation(filters)
+        obs['_fake_observation'] = True
 
     obs['filters'] = f
     obs['maggies'] = m

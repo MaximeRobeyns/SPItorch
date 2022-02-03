@@ -43,4 +43,4 @@ def squareplus_f(x, a=2):
     return (x + t.sqrt(t.square(x)+a*a))/2
 
 
-# TODO complete (e.g. loading offline galaxy datasets)
+# TODO complete (e.g. loading offline observation datasets)

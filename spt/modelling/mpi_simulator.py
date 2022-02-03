@@ -60,7 +60,7 @@ def sim_func(status, idx: int):
     sp = SamplingParams()
     N = sp.n_samples // sp.concurrency
 
-    sim = Simulator(ForwardModelParams, sp.galaxy)
+    sim = Simulator(ForwardModelParams, sp.observation)
 
     status[0] = Status.LOADED
 

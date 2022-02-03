@@ -83,7 +83,7 @@ class SamplingParams(ConfigClass):
     # n_samples: int = int(50e6)
     n_samples: int = int(50e3)
     concurrency: int = 4
-    galaxy: bool = False  # use real galaxy as obs... should have no effect
+    observation: bool = False  # use real observation as obs... should have no effect
     save_dir = './data/dsets/example/'  # Make this unique
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
@@ -147,7 +147,7 @@ class EMCEEParams(ConfigClass):
     optimise: bool = True
     min_method: FittingMethod = FittingMethod.LM
     min_n: int = 10
-    pool: ConcurrencyMethod = ConcurrencyMethod.native  # MPI recommended
+    pool: ConcurrencyMethod = ConcurrencyMethod.none  # MPI recommended
     workers = 6
     results_dir = './results/mcmc/emcee_samples/'
 

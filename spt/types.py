@@ -48,3 +48,4 @@ class FittingMethod(Enum):
 class ConcurrencyMethod(Enum):
     MPI = 1  # mpi-based concurrency
     native = 2  # multiprocessing based concurrency
+    none = 3  # no concurrency

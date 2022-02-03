@@ -378,7 +378,7 @@ model_t = Type[Model]
 if __name__ == '__main__':
     """
     Load configurations, train the selected model and save to disk (or just
-    load from disk, as appropriate), then draw samples for a galaxy, outputting
+    load from disk, as appropriate), then draw samples for a observation, outputting
     the plot in the results directory.
     """
 
