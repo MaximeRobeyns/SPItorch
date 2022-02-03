@@ -78,9 +78,12 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 
 class SamplingParams(ConfigClass):
 
-    n_samples: int = 10**5
-    concurrency: int = 6
-    save_dir = './data/dsets/'  # Make this unique
+    # n_samples: int = int(50e6)
+    n_samples: int = int(50e3)
+    concurrency: int = 4
+    galaxy: bool = False  # use real galaxy as obs... should have no effect
+    save_dir = './data/dsets/example/'  # Make this unique
+    combine_samples: bool = True  # combine partial samples into one big file?
 
 
 # ============================ Inference Parameters ===========================
@@ -146,6 +149,20 @@ class SANParams(san.SANParams):
 
     # Optimiser (Adam) learning rate
     opt_lr: float = 1e-4
+
+
+class MCMCParams():
+    """Parameters for running comparison MCMC inference; closely coupled to
+    Prospector"""
+
+    # Attempt to initialise our model reasonably close to the data by using
+    # numerical minimisation methods: Levenberg-Marquardt ('lm') or Powell
+    num_min: bool = True
+    min_method: str = 'lm'  # 'powell'
+    # Start minimisation at n different places to guard against local minima:
+    min_n: int = 2
+
+    # EMCEE parameters:
 
 
 # =========================== Logging Parameters ==============================

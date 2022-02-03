@@ -75,7 +75,7 @@ class Prospector:
         self.obs = mp.build_obs_fn(mp.filters, galaxy)
         logging.debug(f'Created obs dict: {self.obs}')
 
-        self.model = mp.build_model_fn(mp.all_params, mp.ordered_free_params)
+        self.model = mp.build_model_fn(mp.all_params, mp.ordered_params)
         logging.debug(f'Created model: {self.model}')
 
         self.sps = mp.build_sps_fn(**mp.sps_kwargs)
@@ -98,6 +98,8 @@ class Prospector:
         # TODO check that these are correct
         return spec, phot
 
+
+
     # def photometry(self, theta: Optional[np.ndarray] = self.model.theta
     #               ) -> np.ndarray:
     #     """Return the simulated photometric observations
@@ -110,8 +112,8 @@ class Prospector:
     #     """
     #     raise NotImplementedError
 
-    def visualise_obs(self, show: bool=True, save: bool=False,
-                      path: str = None):
+    def visualise_obs(self, show: bool=False, save: bool=True,
+                      path: str = './results/obs.png'):
         logging.info('[bold]Visualising observations')
         if self.obs['_fake_galaxy']:
             logging.warning((
@@ -122,8 +124,8 @@ class Prospector:
 
 
     def visualise_model(self, theta: Optional[tensor_like] = None,
-                        no_obs: bool = False, show: bool = True,
-                        save: bool = False, path: str = None):
+                        no_obs: bool = False, show: bool = False,
+                        save: bool = True, path: str = './results/model.png'):
         """Visualise predicted photometry from a theta vector.
 
         Args:

@@ -44,6 +44,11 @@ default: test
 dset: ## To create an offline dataset of theta-photometry samples.
 	@python spt/modelling/simulation.py
 
+mdset:  ## To create an offline dataset, using mpi
+	@$(eval N := $(shell python -c\
+	'from spt.config import SamplingParams as S; print(S().concurrency)'))
+	mpirun -n $N python spt/modelling/mpi_simulator.py
+
 mypy: ## To run mypy only (this is usually done with test / alltest)
 	@mypy
 

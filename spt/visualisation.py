@@ -157,7 +157,6 @@ def visualise_obs(obs: obs_dict_t, show: bool = True, save: bool = False,
         save: Whether to save the plot
         path: Filepath to save the plot at (default './results/obs.png')
     """
-    logging.info(f'Visualising observations')
     xbounds, ybounds = _get_bounds(obs)
     fig, ax = plt.subplots(figsize=(16, 8), dpi=300)
     _plot_obs_photometry(obs)

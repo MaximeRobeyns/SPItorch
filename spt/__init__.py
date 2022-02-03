@@ -21,44 +21,13 @@ of stellar populations in PyTorch.
 __version__ = "0.0.1"
 
 import os
-import time
-import logging
 
 os.environ['SPS_HOME'] = os.path.split(__path__[0])[0] + '/deps/fsps'
 
 from .load_photometry import *
 from .modelling.prospector import Prospector
-
-
-# ============================================================================
-
-from rich.padding import Padding
-from rich.console import Console
+from .utils import splash_screen
 
 from spt.logs import configure_logging
 configure_logging()
 
-console = Console(width=80)
-console.rule()
-info = Padding(f'''
-SPItorch
-
-Version: {__version__}, {time.ctime()}
-Copyright (C) 2019-20 Mike Walmsley <walmsleymk1@gmail.com>
-Copyright (C) 2022 Maxime Robeyns <dev@maximerobeyns.com>
-        ''', (1, 8))
-console.print(info, highlight=False, markup=False)
-console.rule()
-
-lc = Console(record=True, force_terminal=False, width=80)
-lc.begin_capture()
-lc.rule()
-lc.print(info, highlight=False, markup=False)
-lc.rule()
-for h in logging.getLogger().handlers:
-    if isinstance(h, logging.handlers.RotatingFileHandler):
-        r = logging.makeLogRecord({
-            "msg": '\n'+lc.end_capture(),
-            "level": logging.INFO,
-            })
-        h.handle(r)

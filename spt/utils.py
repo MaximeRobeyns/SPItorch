@@ -16,10 +16,10 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Project-wide utilities file"""
 
+import time
 import numpy as np
 import pprint
 import logging
-
 
 class ConfigClass():
     """ConfigClass is an abstract base class for all SPItorch configuration
@@ -104,3 +104,38 @@ colours = {
     "do": "#F25D27", # dark orange
     "r": "#F20505"   # red.
 }
+
+
+# Splash screen ==============================================================
+
+
+def splash_screen():
+    import logging.handlers as lhandlers
+    from spt import __version__
+    from rich.padding import Padding
+    from rich.console import Console
+
+    console = Console(width=80)
+    console.rule()
+    info = Padding(f'''
+    SPItorch
+
+    Version: {__version__}, {time.ctime()}
+    Copyright (C) 2019-20 Mike Walmsley <walmsleymk1@gmail.com>
+    Copyright (C) 2022 Maxime Robeyns <dev@maximerobeyns.com>
+            ''', (1, 8))
+    console.print(info, highlight=False, markup=False)
+    console.rule()
+
+    lc = Console(record=True, force_terminal=False, width=80)
+    lc.begin_capture()
+    lc.rule()
+    lc.print(info, highlight=False, markup=False)
+    lc.rule()
+    for h in logging.getLogger().handlers:
+        if isinstance(h, lhandlers.RotatingFileHandler):
+            r = logging.makeLogRecord({
+                "msg": '\n'+lc.end_capture(),
+                "level": logging.INFO,
+                })
+            h.handle(r)

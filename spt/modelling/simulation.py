@@ -21,6 +21,7 @@ import logging
 import numpy as np
 
 from enum import Enum
+from copy import deepcopy
 from rich.progress import Progress
 from typing import Type
 
@@ -73,22 +74,27 @@ class Simulator:
 
 class Status(Enum):
     STARTING = 1
-    LOADING = 2
+    LOADED = 2
     SAMPLED = 3
     SAVING = 4
     DONE = 5
 
 
-def work_func(idx: int, n: int, q: Queue, fmp: Type[ForwardModelParams],
+def work_func(idx: int, n: int, q: Queue, sim: Simulator,
               save_dir: str, logging_freq: int = 10) -> None:
     q.put((idx, Status.STARTING, 0))
 
-    sim = Simulator(fmp, False)
+    # TODO: this seems to take too long to run... GIL?
+    # sim = Simulator(fmp, False, sps)
 
     theta = np.zeros((n, sim.dim))
     phot = np.zeros((n, sim.phot_dim))
 
-    q.put((idx, Status.LOADING, 0))
+    # Force loading SPS libraries
+    for i in range(10):
+        theta[i], phot[i] = sim.simulate_sample()
+
+    q.put((idx, Status.LOADED, 0))
 
     for i in range(n):
         theta[i], phot[i] = sim.simulate_sample()
@@ -124,33 +130,38 @@ if __name__ == '__main__':
     status_q = Queue()
 
     logging.info(f'Creating a dataset size {sp.n_samples} across {C} workers')
-    logging.info(f'Note: process setup can take a few minutes')
 
-    for p in range(C):
-        Process(target=work_func,
-                args=(p, N, status_q, ForwardModelParams, sp.save_dir))
+    if not os.path.exists(sp.save_dir):
+        os.makedirs(sp.save_dir)
+        logging.info(f'Created results directory {sp.save_dir}')
+
+    logging.info('[bold]Setting up forward model')
+    sim = Simulator(ForwardModelParams, sp.galaxy)
+
+    # t = progress.add_task('[bold]Loading SPS libraries', start=False, total=10)
 
     # silence all non-error logs:
     log = logging.getLogger()
     l = log.getEffectiveLevel()
     log.setLevel(logging.ERROR)
+
     with Progress() as progress:
 
         tasks = []
 
         for p in range(C):
             Process(target=work_func,
-                    args=(p, N, status_q, ForwardModelParams, sp.save_dir)).start()
-            tasks.append(progress.add_task(f'[red]Starting {p:02}', total=N))
+                    args=(p, N, status_q, deepcopy(sim), sp.save_dir)).start()
+            tasks.append(progress.add_task(f'[red]Loading  {p:02}', total=N, start=False))
 
         done = 0
         while done < C:
             (idx, status, n) = status_q.get()
-            if status == Status.LOADING:
-                progress.update(tasks[idx], completed=n,
-                                description=f'[blue]Loading  {idx:02}')
+            if status == Status.LOADED:
+                progress.reset(tasks[idx], completed=n, start=True,
+                               description=f'[green]Running  {idx:02}')
             elif status == Status.SAMPLED:
-                progress.update(tasks[idx], completed=n,
+                progress.update(tasks[idx], completed=n, start=True,
                                 description=f'[green]Running  {idx:02}')
             elif status == Status.SAVING:
                 progress.update(tasks[idx], completed=n,

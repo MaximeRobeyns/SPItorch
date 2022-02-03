@@ -19,4 +19,3 @@ from .parameter import Parameter, ParamConfig, pdict_t
 
 from .builders import build_model, build_obs, build_sps
 from .builders import build_obs_fn_t, build_model_fn_t, build_sps_fn_t
-
