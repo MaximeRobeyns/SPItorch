@@ -141,7 +141,7 @@ def load_catalogue(catalogue_loc: str, filters: list[Filter],
 def load_galaxy(index: Optional[int] = None,
                 catalogue_loc: Optional[str] = None,
                 filters: Optional[list[Filter]] = None,
-                ) -> tuple[pd.Series, int]:
+                ) -> pd.Series:
     """Load a galaxy from a catalogue of real-world observations.
 
     Args:
@@ -170,8 +170,9 @@ def load_galaxy(index: Optional[int] = None,
         logging.info(f'No index specified: using random index {index}')
 
     df_series = add_maggies_cols(df.iloc[index], filters)
+    df_series['idx'] = index
     assert isinstance(df_series, pd.Series)
-    return df_series, index
+    return df_series
 
 
 # TODO port get_simulated_galaxy

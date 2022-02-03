@@ -20,6 +20,7 @@ Edit the classes in this file to configure SPItorch before running one of the
 targets in the Makefile.
 """
 
+import os
 import logging
 import torch as t
 import prospect.models.priors as priors
@@ -31,7 +32,7 @@ import spt.modelling
 import spt.inference as inference
 
 from spt.utils import ConfigClass
-from spt.types import MCMCMethod, FittingMethod
+from spt.types import MCMCMethod, FittingMethod, ConcurrencyMethod
 from spt.filters import Filter, FilterLibrary, FilterCheck
 from spt.inference import san
 from spt.modelling import Parameter, ParamConfig
@@ -85,6 +86,7 @@ class SamplingParams(ConfigClass):
     galaxy: bool = False  # use real galaxy as obs... should have no effect
     save_dir = './data/dsets/example/'  # Make this unique
     combine_samples: bool = True  # combine partial samples into one big file?
+    cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
 
 # ============================ Inference Parameters ===========================
@@ -137,11 +139,33 @@ class FittingParams(ConfigClass):
 
 
 class EMCEEParams(ConfigClass):
-    pass
+    nwalkers: int = 128
+    nburn: list[int] = [16, 32, 64]
+    niter: int = 512
+
+    # Whether to use numerical optimisation
+    optimise: bool = True
+    min_method: FittingMethod = FittingMethod.LM
+    min_n: int = 10
+    pool: ConcurrencyMethod = ConcurrencyMethod.native  # MPI recommended
+    workers = 6
+    results_dir = './results/mcmc/emcee_samples/'
 
 
 class DynestyParams(ConfigClass):
-    pass
+
+    nested_method: str = 'rwalk'
+    nlive_init: int = 400
+    nlive_batch: int = 200
+    nested_dlogz_init: float = 0.05
+    nested_posterior_thresh: float = 0.05
+    nested_maxcall: int = int(1e7)
+
+    # Whether to use numerical optimisation
+    optimise: bool = True
+    min_method: FittingMethod = FittingMethod.LM
+    min_n: int = 10
+    results_dir = './results/mcmc/dynesty_samples/'
 
 
 # Machine learning inference --------------------------------------------------

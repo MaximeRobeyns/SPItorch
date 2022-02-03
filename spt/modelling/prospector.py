@@ -16,6 +16,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """A light wrapper around Prospector"""
 
+import os
 import logging
 import numpy as np
 import pandas as pd
@@ -23,15 +24,15 @@ import pandas as pd
 from rich.console import Console
 from typing import Any, Callable, Optional, Union
 from prospect.fitting import fit_model, lnprobfn
+from prospect.io import write_results as writer
 
 import spt.visualisation as vis
 
-from spt.types import tensor_like, FittingMethod
+from spt.types import tensor_like, FittingMethod, ConcurrencyMethod
 from spt.config import ForwardModelParams, FittingParams, EMCEEParams,\
                        DynestyParams
 
-
-prun_params_t = dict[str, Union[int, bool, float, None, list[int], str]]
+prun_params_t = dict[str, Union[int, bool, float, None, list[int], str, Any]]
 
 
 def get_forward_model(galaxy: Optional[pd.Series] = None,
@@ -77,6 +78,8 @@ class Prospector:
         logging.info('Initialising prospector class')
 
         mp = mp()
+        if galaxy is not None and 'idx' in galaxy:
+            self.index = int(galaxy.idx)
 
         self.obs = mp.build_obs_fn(mp.filters, galaxy)
         logging.info(f'Created obs dict with filters\n{[f.name for f in self.obs["filters"]]}')
@@ -91,6 +94,7 @@ class Prospector:
         logging.info(f'Done.')
         logging.debug(f'Created sps: {self.sps}')
 
+        self.mp = mp
         self.has_fit: bool = False
 
     def __call__(self, theta: Optional[np.ndarray] = None,
@@ -120,6 +124,16 @@ class Prospector:
         c.rule()
         return c.end_capture()
 
+    def _fake_obs_warning(self, method: str = 'prospector method'):
+            logging.warning((
+                f'Calling {method} with fake galaxy observations.\n'
+                'Please construct the Prospector object with a real galaxy '
+                'instead.'))
+
+    def set_theta(self, theta: np.ndarray):
+        # TODO implement this.
+        raise NotImplementedError
+
     def numerical_fit(self, fp: FittingParams = FittingParams()) -> list[Any]:
         """'Burn in' for layer MCMC sampling using a numerical method.
 
@@ -129,19 +143,93 @@ class Prospector:
         if fp.min_method == FittingMethod.ML:
             raise NotImplementedError("MCMC initialisation with ML results not yet implemented.")
 
-        run_params: prun_params_t = {'dynesty': False, 'emcee': False, 'optimize': True}
+        run_params: prun_params_t = {
+                'dynesty': False, 'emcee': False, 'optimize': True}
         run_params["min_method"] = fp.min_method.value
         run_params["nmin"] = fp.min_n
 
-        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn, **run_params)
+        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
+                           **run_params)
         (results, time) = output['optimization']
         logging.info(f'Fitting took {time:.2f}s')
         assert results is not None
         return results
 
-    def mcmc_fit(self):
+    def emcee_fit(self, ep: EMCEEParams = EMCEEParams()):
         """Runs MCMC method to update the value of self.model.theta
         """
+        logging.info(f'Running EMCEE fitting')
+        if self.obs['_fake_galaxy']:
+            self._fake_obs_warning('emcee_fit')
+
+        run_params: prun_params_t = {'dynesty': False, 'emcee': True}
+
+        run_params['optimize'] = ep.optimise
+        if ep.min_method == FittingMethod.ML:
+            raise NotImplementedError("MCMC initialisation with ML results not yet implemented.")
+        run_params['min_method'] = ep.min_method.value
+        run_params['nmin'] = ep.min_n
+
+        run_params['nwalkers'] = ep.nwalkers
+        run_params['niter'] = ep.niter
+        run_params['nburn'] = ep.nburn
+
+        if ep.pool == ConcurrencyMethod.MPI:
+            logging.info('running this for some reason')
+            from schwimmbad.mpi import MPIPool
+            run_params['pool'] = MPIPool()
+        else:
+            from multiprocessing import Pool
+            run_params['pool'] = Pool(ep.workers)
+
+        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
+                           **run_params)
+        logging.info(f'Finished EMCEE sampling in {output["sampling"][1]:.2f}s')
+
+        survey = os.path.basename(self.mp.catalogue_loc).split('.')[0]
+        hfile = os.path.join(ep.results_dir, f'{survey}_{self.index}.h5')
+
+        writer.write_hdf5(hfile, run_params, self.model, self.obs,
+                          output["sampling"][0], output["optimization"][0],
+                          tsample=output["sampling"][1],
+                          toptimize=output["optimization"][1])
+        logging.info(f'Saved EMCEE results to {hfile}')
+
+
+    def dynesty_fit(self, dp: DynestyParams = DynestyParams()):
+        """Runs Dynesty (nested) sampling to update the value of self.model.theta"""
+        logging.info('Running Dynesty fitting')
+        if self.obs['_fake_galaxy']:
+            self._fake_obs_warning('dynesty_fit')
+
+        run_params: prun_params_t = {'dynesty': True, 'emcee': False}
+
+        run_params['optimize'] = dp.optimise
+        if dp.min_method == FittingMethod.ML:
+            raise NotImplementedError("MCMC initialisation with ML results not yet implemented.")
+        run_params['min_method'] = dp.min_method.value
+        run_params['nmin'] = dp.min_n
+
+        run_params['nested_method'] = dp.nested_method
+        run_params['nlive_init'] = dp.nlive_init
+        run_params['nlive_batch'] = dp.nlive_batch
+        run_params['nested_dlogz_init'] = dp.nested_dlogz_init
+        run_params['nested_posterior_thresh'] = dp.nested_posterior_thresh
+        run_params['nested_maxcall'] = dp.nested_maxcall
+
+        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
+                           **run_params)
+        logging.info(f'Finished Dynesty sampling in {output["sampling"][1]:.2f}s')
+
+        survey = os.path.basename(self.mp.catalogue_loc).split('.')[0]
+        hfile = os.path.join(dp.results_dir, f'{survey}_{self.index}.h5')
+
+        writer.write_hdf5(hfile, run_params, self.model, self.obs,
+                          output["sampling"][0], output["optimization"][0],
+                          tsample=output["sampling"][1],
+                          toptimize=output["optimization"][1])
+        logging.info(f'Saved Dynesty results to {hfile}')
+
 
     # def photometry(self, theta: Optional[np.ndarray] = self.model.theta
     #               ) -> np.ndarray:
@@ -159,10 +247,7 @@ class Prospector:
                       path: str = './results/obs.png'):
         logging.info('[bold]Visualising observations')
         if self.obs['_fake_galaxy']:
-            logging.warning((
-                'Calling visualise_obs with fake galaxy observations.\n'
-                'Please construct the Prospector object with a real galaxy '
-                'instead.'))
+            self._fake_obs_warning('visualise_obs')
         vis.visualise_obs(self.obs, show, save, path)
 
 
@@ -184,10 +269,7 @@ class Prospector:
         logging.info('[bold]Visualising model predictions')
 
         if not no_obs and self.obs['_fake_galaxy']:
-            logging.warning((
-                'Plotting fake galaxy observations.\n'
-                'To avoid plotting observations in model predictions, '
-                'set no_obs=True.'))
+            self._fake_obs_warning('visualise_model')
 
         vis.visualise_model(self.model, self.sps, theta,
                             None if no_obs else self.obs, show,

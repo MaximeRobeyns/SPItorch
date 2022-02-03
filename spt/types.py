@@ -45,3 +45,6 @@ class FittingMethod(Enum):
     ML = 'ml'  # use machine learning predictions to initialise theta.
 
 
+class ConcurrencyMethod(Enum):
+    MPI = 1  # mpi-based concurrency
+    native = 2  # multiprocessing based concurrency

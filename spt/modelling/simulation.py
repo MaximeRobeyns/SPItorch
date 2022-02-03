@@ -40,7 +40,7 @@ class Simulator:
         g = None
         if use_galaxy:
             # Uses catalogue in InferenceParams
-            g, _ = load_galaxy(filters=mp.filters)
+            g = load_galaxy(filters=mp.filters)
 
         self.obs = mp.build_obs_fn(mp.filters, g)
         self.model = mp.build_model_fn(mp.all_params, mp.ordered_params)
