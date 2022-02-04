@@ -33,5 +33,5 @@ configure_logging()
 
 # If user is running in interactive tty, print splash screen
 # Will not print when used as library import, which would get annoying.
-if os.isatty(sys.stdout.fileno()):
-    splash_screen()
+# if os.isatty(sys.stdout.fileno()):
+#     splash_screen()

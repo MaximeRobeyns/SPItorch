@@ -112,17 +112,22 @@ def _get_bounds(obs: obs_dict_t, wspec: Optional[np.ndarray] = None,
     assert isinstance(wphot, np.ndarray)
     xmin, xmax = np.min(wphot)*0.8, np.max(wphot)/0.8
 
+    assert isinstance(obs['maggies'], np.ndarray)
+    ymin, ymax = obs['maggies'].min()*0.8, obs['maggies'].max()/0.4
+    # ymin, ymax = obs['maggies'].min()*0.4, obs['maggies'].max()/0.4
+
     if wspec is not None:  # interpolate sed to calculate y bounds
         if initial_spec is None:
             logging.error(f'initial_spec cannot be None if wspec is defined')
             raise ValueError('initial_spec not set')
         # evaluate wspec (x) vs. initial spec (y), along new x grid
         tmp = np.interp(np.linspace(xmin, xmax, 10000), wspec, initial_spec)
-        ymin, ymax = tmp.min()*0.8, tmp.max()/0.4
-    else:
-        assert isinstance(obs['maggies'], np.ndarray)
-        ymin, ymax = obs['maggies'].min()*0.8, obs['maggies'].max()/0.4
-        # ymin, ymax = obs['maggies'].min()*0.4, obs['maggies'].max()/0.4
+        wymin, wymax = tmp.min()*0.8, tmp.max()/0.4
+        if wymin < ymin:
+            ymin = wymin
+        if wymax > ymax:
+            ymax = wymax
+
     return (xmin, xmax), (ymin, ymax)
 
 

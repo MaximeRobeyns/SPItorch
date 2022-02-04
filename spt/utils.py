@@ -21,6 +21,9 @@ import numpy as np
 import pprint
 import logging
 
+from enum import Enum
+from typing import Any
+
 class ConfigClass():
     """ConfigClass is an abstract base class for all SPItorch configuration
     objects.
@@ -32,18 +35,29 @@ class ConfigClass():
         logging.debug(f'New configuration object: {self}')
 
     def __repr__(self) -> str:
-        r = f'\n\n{79*"="}\n'
+        width = 60
+        r = f'\n\n{width*"="}\n'
         c = f'Configuration class `{type(self).__name__}`'
         n = len(c)
-        nn = int((79 - n) / 2)
-        r += nn * ' ' + c + f'\n{79*"-"}\n\n'
+        nn = int((width - n) / 2)
+        r += nn * ' ' + c + f'\n{width*"-"}\n\n'
         members = [a for a in dir(self) if not callable(getattr(self, a))\
                    and not a.startswith("__")]
         for m in members:
             r += f'{m}: {pprint.pformat(getattr(self, m), compact=True)}\n'
             # r += f'{m}: {pprint(getattr(self, m), max_length=80)}\n'
-        r += '\n' + 79 * '=' + '\n\n'
+        r += '\n' + width * '=' + '\n\n'
         return r
+
+    def to_dict(self) -> dict[str, Any]:
+        members = [a for a in dir(self) if not callable(getattr(self, a))\
+                   and not a.startswith("__")]
+        d = {}
+        for m in members:
+            d[m] = getattr(self, m)
+            if isinstance(d[m], Enum):
+                d[m] = d[m].value
+        return d
 
 
 def denormalise_theta(norm_theta: np.ndarray, limits: np.ndarray) -> np.ndarray:

@@ -20,22 +20,27 @@ import os
 import logging
 import numpy as np
 import pandas as pd
+from prospect.models.sedmodel import SedModel
 
 from rich.console import Console
 from typing import Any, Callable, Optional, Union
 from prospect.fitting import fit_model, lnprobfn
 from prospect.io import write_results as writer
+from prospect.io import read_results as reader
 
 import spt.visualisation as vis
 
-from spt.types import tensor_like, FittingMethod, ConcurrencyMethod
+from spt.types import tensor_like, FittingMethod, ConcurrencyMethod, MCMCMethod
 from spt.config import ForwardModelParams, FittingParams, EMCEEParams,\
-                       DynestyParams
+                       DynestyParams, InferenceParams
 
+
+fit_params_t = Union[EMCEEParams, DynestyParams]
 prun_params_t = dict[str, Union[int, bool, float, None, list[int], str, Any]]
+ffit_t = Callable[["Prospector", fit_params_t, prun_params_t], None]
 
 
-def get_forward_model(observtion: Optional[pd.Series] = None,
+def get_forward_model(observation: Optional[pd.Series] = None,
                       mp = ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
     """Returns a (photometry-only) forward model.
 
@@ -43,7 +48,7 @@ def get_forward_model(observtion: Optional[pd.Series] = None,
     validating ML model outputs).
 
     Args:
-        observtion: observtion to initialise obs dict with. If left out, a dummy observtion
+        observation: observation to initialise obs dict with. If left out, a dummy observation
             will be used.
             TODO: remove this if it has no effect on predictions.
         mp: The forward model parameters.
@@ -53,7 +58,7 @@ def get_forward_model(observtion: Optional[pd.Series] = None,
     """
     logging.info('Initialising new forward model')
     mp = mp()
-    _obs = mp.build_obs_fn(mp.filters, observtion)
+    _obs = mp.build_obs_fn(mp.filters, observation)
     _model = mp.build_model_fn(mp.all_params, mp.ordered_params)
     _sps = mp.build_sps_fn(**mp.sps_kwargs)
 
@@ -65,23 +70,57 @@ def get_forward_model(observtion: Optional[pd.Series] = None,
     return f
 
 
+def save_and_load(mm: MCMCMethod) -> Callable[[ffit_t], Callable[["Prospector", fit_params_t], None]]:
+    """Decorator for fitting methods to first check whether the sampling has
+    already been run (and load it if necessary), and if not to ensure that the
+    samples are saved to disk after sampling does proceed.
+    """
+    def g(fit_func: ffit_t) -> Callable[["Prospector", fit_params_t], None]:
+        def f(self: "Prospector", *args, **kwargs) -> None:
+
+            if self.obs['_fake_observation']:
+                self._fake_obs_warning(f'fit_model on {mm.value}')
+
+            hfile = self.results_fpath(self.index, mm)
+            if os.path.exists(hfile):
+                logging.info(f'Found results file ({hfile}) for fit: skipping.')
+                self.load_fit_results(hfile)
+                return
+
+            run_params = {}
+            kwargs |= {'run_params': run_params}
+            fit_func(self, *args, **kwargs)
+
+            assert self.fit_output is not None
+
+            writer.write_hdf5(hfile, run_params, self.model, self.obs,
+                self.fit_output["sampling"][0],
+                self.fit_output["optimization"][0],
+                tsample=self.fit_output["sampling"][1],
+                toptimize=self.fit_output["optimization"][1])# , sps=self.sps)
+            logging.info(f'Saved {mm.value} results to {hfile}')
+            self.fit_results, _, _ = reader.results_from(hfile)
+        return f
+    return g
+
+
 class Prospector:
 
-    def __init__(self, observtion: Optional[pd.Series] = None, mp = ForwardModelParams):
+    def __init__(self, observation: Optional[pd.Series] = None, mp = ForwardModelParams):
         """Construct a prospector instance for simulation and MCMC-based
         parameter inference.
 
         Args:
-            observtion: an optional observtion. If None, a dummy observtion will be used to
+            observation: an optional observation. If None, a dummy observation will be used to
                 make prospector happy (e.g. for sampling).
         """
         logging.info('Initialising prospector class')
 
         mp = mp()
-        if observtion is not None and 'idx' in observtion:
-            self.index = int(observtion.idx)
+        if observation is not None and 'idx' in observation:
+            self.index = int(observation.idx)
 
-        self.obs = mp.build_obs_fn(mp.filters, observtion)
+        self.obs = mp.build_obs_fn(mp.filters, observation)
         logging.info(f'Created obs dict with filters\n{[f.name for f in self.obs["filters"]]}')
         logging.debug(f'Created obs dict: {self.obs}')
 
@@ -94,8 +133,8 @@ class Prospector:
         logging.info(f'Done.')
         logging.debug(f'Created sps: {self.sps}')
 
-        self.mp = mp
-        self.has_fit: bool = False
+        # output from fit_model. Contains 'optimization' and 'sampling' keys.
+        self.fit_output = None
 
     def __call__(self, theta: Optional[np.ndarray] = None,
                  ) -> tuple[np.ndarray, np.ndarray]:
@@ -127,12 +166,23 @@ class Prospector:
     def _fake_obs_warning(self, method: str = 'prospector method'):
             logging.warning((
                 f'Calling {method} with a fake observation.\n'
-                'Please construct the Prospector object with a real observtion '
+                'Please construct the Prospector object with a real observation '
                 'instead.'))
 
     def set_theta(self, theta: np.ndarray):
-        # TODO implement this.
-        raise NotImplementedError
+        """Convenience method to set model parameters."""
+        self.model.set_parameters(theta)
+
+    def results_fpath(self, index: int = None, method: MCMCMethod = None,
+                      p: fit_params_t = None) -> str:
+        if p is None:
+            if method == MCMCMethod.EMCEE:
+                p = EMCEEParams()
+            else:
+                p = DynestyParams()
+        ip = InferenceParams()
+        survey = os.path.basename(ip.catalogue_loc).split('.')[0]
+        return os.path.join(p.results_dir, f'{survey}_{index}.h5')
 
     def numerical_fit(self, fp: FittingParams = FittingParams()) -> list[Any]:
         """'Burn in' for layer MCMC sampling using a numerical method.
@@ -146,91 +196,84 @@ class Prospector:
         run_params: prun_params_t = {
                 'dynesty': False, 'emcee': False, 'optimize': True}
         run_params["min_method"] = fp.min_method.value
-        run_params["nmin"] = fp.min_n
+        run_params["nmin"] = fp.nmin
 
-        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
-                           **run_params)
-        (results, time) = output['optimization']
+        self.fit_output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
+                                    **run_params)
+        (results, time) = self.fit_output['optimization']
         logging.info(f'Fitting took {time:.2f}s')
         assert results is not None
         return results
 
-    def emcee_fit(self, ep: EMCEEParams = EMCEEParams()):
+    @save_and_load(MCMCMethod.EMCEE)
+    def emcee_fit(self, ep: fit_params_t = EMCEEParams(),
+                  run_params: prun_params_t = {}) -> None:
         """Runs MCMC method to update the value of self.model.theta
         """
-        logging.info(f'Running EMCEE fitting with parameters:')
-        logging.info(ep)
-        if self.obs['_fake_observtion']:
-            self._fake_obs_warning('emcee_fit')
+        assert isinstance(ep, EMCEEParams)
+        logging.info(f'Running EMCEE fitting with parameters:\n{ep}')
 
-        run_params: prun_params_t = {'dynesty': False, 'emcee': True}
-
-        run_params['optimize'] = ep.optimise
         if ep.min_method == FittingMethod.ML:
             raise NotImplementedError("MCMC initialisation with ML results not yet implemented.")
-        run_params['min_method'] = ep.min_method.value
-        run_params['nmin'] = ep.min_n
-
-        run_params['nwalkers'] = ep.nwalkers
-        run_params['niter'] = ep.niter
-        run_params['nburn'] = ep.nburn
+        run_params |= ep.to_dict() | {'dynesty': False, 'emcee': True}
 
         if ep.pool == ConcurrencyMethod.MPI:
-            logging.info('running this for some reason')
-            from schwimmbad.mpi import MPIPool
-            run_params['pool'] = MPIPool()
+            raise NotImplementedError("MPI parallelism for EMCEE not implemented")
+            # from schwimmbad.mpi import MPIPool
+            # run_params['pool'] = MPIPool()
         elif ep.pool == ConcurrencyMethod.native:
             from multiprocessing import Pool
             run_params['pool'] = Pool(ep.workers)
+        elif ep.pool == ConcurrencyMethod.none:
+            run_params['pool'] = None
 
-        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
-                           **run_params)
-        logging.info(f'Finished EMCEE sampling in {output["sampling"][1]:.2f}s')
+        self.fit_output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
+                                    **run_params)
+        logging.info(f'Finished EMCEE sampling in {self.fit_output["sampling"][1]:.2f}s')
 
-        survey = os.path.basename(self.mp.catalogue_loc).split('.')[0]
-        hfile = os.path.join(ep.results_dir, f'{survey}_{self.index}.h5')
-
-        writer.write_hdf5(hfile, run_params, self.model, self.obs,
-                          output["sampling"][0], output["optimization"][0],
-                          tsample=output["sampling"][1],
-                          toptimize=output["optimization"][1])
-        logging.info(f'Saved EMCEE results to {hfile}')
-
-
-    def dynesty_fit(self, dp: DynestyParams = DynestyParams()):
+    @save_and_load(MCMCMethod.Dynesty)
+    def dynesty_fit(self, dp: fit_params_t = DynestyParams(),
+                    run_params: prun_params_t = {}) -> None:
         """Runs Dynesty (nested) sampling to update the value of self.model.theta"""
-        logging.info('Running Dynesty fitting with parameters:')
-        logging.info(dp)
-        if self.obs['_fake_observtion']:
-            self._fake_obs_warning('dynesty_fit')
+        assert isinstance(dp, DynestyParams)
+        logging.info('Running Dynesty fitting with parameters:\n{dp}')
 
-        run_params: prun_params_t = {'dynesty': True, 'emcee': False}
-
-        run_params['optimize'] = dp.optimise
         if dp.min_method == FittingMethod.ML:
             raise NotImplementedError("MCMC initialisation with ML results not yet implemented.")
-        run_params['min_method'] = dp.min_method.value
-        run_params['nmin'] = dp.min_n
 
-        run_params['nested_method'] = dp.nested_method
-        run_params['nlive_init'] = dp.nlive_init
-        run_params['nlive_batch'] = dp.nlive_batch
-        run_params['nested_dlogz_init'] = dp.nested_dlogz_init
-        run_params['nested_posterior_thresh'] = dp.nested_posterior_thresh
-        run_params['nested_maxcall'] = dp.nested_maxcall
+        run_params |= dp.to_dict() | {'dynesty': True, 'emcee': False}
 
-        output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
+        self.fit_output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
                            **run_params)
-        logging.info(f'Finished Dynesty sampling in {output["sampling"][1]:.2f}s')
+        logging.info(f'Finished Dynesty sampling in {self.fit_output["sampling"][1]:.2f}s')
 
-        survey = os.path.basename(self.mp.catalogue_loc).split('.')[0]
-        hfile = os.path.join(dp.results_dir, f'{survey}_{self.index}.h5')
+    def load_fit_results(self, file: str = None, index: int = None,
+                        method: MCMCMethod = None) -> None:
+        """Attempt to load the results of fitting; either by providing a path
+        to the hdf5 results file directly, or by specifying both the index and
+        fitting method.
 
-        writer.write_hdf5(hfile, run_params, self.model, self.obs,
-                          output["sampling"][0], output["optimization"][0],
-                          tsample=output["sampling"][1],
-                          toptimize=output["optimization"][1])
-        logging.info(f'Saved Dynesty results to {hfile}')
+        Args:
+            file: file path to a hdf5 file of results.
+            index: index of galaxy to try to load
+            method: MCMC method of results to find.
+
+        Implicit Returns:
+            Sets the self.fit_output property with the results.
+        """
+        if file is None:
+            if index is None or method is None:
+                raise ValueError(
+                    'Please specify both the index and fitting method')
+            file = self.results_fpath(index, method)
+        if not os.path.exists(file):
+            logging.error(f'File {file} cannot be found.')
+            raise ValueError(f'Bad file path {file}')
+        self.fit_results, self.obs, tmp_model = reader.results_from(file)
+        if tmp_model is not None:
+            self.model = tmp_model
+        # self.sps = reader.get_sps(self.fit_output)
+        logging.info('Loaded fitting results.')
 
 
     # def photometry(self, theta: Optional[np.ndarray] = self.model.theta
@@ -248,7 +291,7 @@ class Prospector:
     def visualise_obs(self, show: bool=False, save: bool=True,
                       path: str = './results/obs.png'):
         logging.info('[bold]Visualising observations')
-        if self.obs['_fake_observtion']:
+        if self.obs['_fake_observation']:
             self._fake_obs_warning('visualise_obs')
         vis.visualise_obs(self.obs, show, save, path)
 
@@ -270,7 +313,7 @@ class Prospector:
         """
         logging.info('[bold]Visualising model predictions')
 
-        if not no_obs and self.obs['_fake_observtion']:
+        if not no_obs and self.obs['_fake_observation']:
             self._fake_obs_warning('visualise_model')
 
         vis.visualise_model(self.model, self.sps, theta,

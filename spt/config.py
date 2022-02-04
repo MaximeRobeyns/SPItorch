@@ -81,10 +81,10 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 class SamplingParams(ConfigClass):
 
     # n_samples: int = int(50e6)
-    n_samples: int = int(50e3)
-    concurrency: int = 4
+    n_samples: int = int(1e6)
+    concurrency: int = 8
     observation: bool = False  # use real observation as obs... should have no effect
-    save_dir = './data/dsets/example/'  # Make this unique
+    save_dir = './data/dsets/dev/'  # Make this unique
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
@@ -135,7 +135,7 @@ class FittingParams(ConfigClass):
     min_method: FittingMethod = FittingMethod.LM
 
     # Start minimisation at n different places to guard against local minima:
-    min_n: int = 2
+    nmin: int = 2
 
 
 class EMCEEParams(ConfigClass):
@@ -146,7 +146,7 @@ class EMCEEParams(ConfigClass):
     # Whether to use numerical optimisation
     optimise: bool = True
     min_method: FittingMethod = FittingMethod.LM
-    min_n: int = 10
+    nmin: int = 10
     pool: ConcurrencyMethod = ConcurrencyMethod.none  # MPI recommended
     workers = 6
     results_dir = './results/mcmc/emcee_samples/'
@@ -164,7 +164,7 @@ class DynestyParams(ConfigClass):
     # Whether to use numerical optimisation
     optimise: bool = True
     min_method: FittingMethod = FittingMethod.LM
-    min_n: int = 10
+    nmin: int = 10
     results_dir = './results/mcmc/dynesty_samples/'
 
 
