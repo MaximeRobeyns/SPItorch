@@ -28,6 +28,8 @@ from typing import Type
 from spt.load_photometry import load_observation
 from multiprocessing import Process, Queue
 
+import spt.utils as utils
+
 from spt.config import ForwardModelParams, SamplingParams
 
 
@@ -104,19 +106,8 @@ def work_func(idx: int, n: int, q: Queue, sim: Simulator,
     q.put((idx, Status.SAVING, n))
 
     save_path = os.path.join(save_dir, f'photometry_sim_{n}_{idx}.h5')
-    with h5py.File(save_path, 'w') as f:
-        grp = f.create_group('samples')
-
-        ds_x = grp.create_dataset('theta', data=theta)
-        ds_x.attrs['columns'] = sim.model.free_params
-        ds_x.attrs['description'] = 'Parameters used by simulator'
-
-        ds_y = grp.create_dataset('simulated_y', data=phot)
-        ds_y.attrs['description'] = 'Response of simulator'
-
-        # Wavelengths at for each of the simulated_y
-        ds_wl = grp.create_dataset('wavelengths', data=sim.obs['phot_wave'])
-        ds_wl.attrs['description'] = 'Effective wavelengths for each of the filters'
+    assert isinstance(sim.obs['phot_wave'], np.ndarray)
+    utils.save_sim(save_path, theta, sim.model.free_params, phot, sim.obs['phot_wave'])
 
     q.put((idx, Status.DONE, n))
 
@@ -172,5 +163,4 @@ if __name__ == '__main__':
                 done += 1
     log.setLevel(l)
 
-    # join and save samples
-    # utils.join_partial_samples(sp)
+    utils.join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)

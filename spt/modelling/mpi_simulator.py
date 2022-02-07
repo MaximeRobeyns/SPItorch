@@ -28,6 +28,8 @@ from threading import Lock
 from rich.progress import Progress
 from multiprocessing import Manager, Process
 
+import spt.utils as utils
+
 from spt.config import ForwardModelParams, SamplingParams
 from spt.modelling.simulation import Simulator, Status
 
@@ -77,19 +79,8 @@ def sim_func(status, idx: int):
     status[1] = N
 
     save_path = os.path.join(sp.save_dir, f'photometry_sim_{sp.n_samples}_{idx}.h5')
-    with h5py.File(save_path, 'w') as f:
-        grp = f.create_group('samples')
-
-        ds_x = grp.create_dataset('theta', data=theta)
-        ds_x.attrs['columns'] = sim.model.free_params
-        ds_x.attrs['description'] = 'Parameters used by simulator'
-
-        ds_y = grp.create_dataset('simulated_y', data=phot)
-        ds_y.attrs['description'] = 'Response of simulator'
-
-        # Wavelengths at for each of the simulated_y
-        ds_wl = grp.create_dataset('wavelengths', data=sim.obs['phot_wave'])
-        ds_wl.attrs['description'] = 'Effective wavelengths for each of the filters'
+    assert isinstance(sim.obs['phot_wave'], np.ndarray)
+    utils.save_sim(save_path, theta, sim.model.free_params, phot, sim.obs['phot_wave'])
 
     # set the status to done before exiting.
     status[0] = Status.DONE
@@ -173,6 +164,11 @@ if __name__ == '__main__':
         # send TERM signal
         mpi_comm.bcast(True)
 
+        logging.info(f'Joining {sp.concurrency} partial result files')
+
+        utils.join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)
+
+
     def work_func(mpi_comm: MPIComm):
 
         sm = Manager()
@@ -209,6 +205,3 @@ if __name__ == '__main__':
         root_func(mpi_comm)
     else:
         work_func(mpi_comm)
-
-    # join and save samples
-    # utils.join_partial_samples(sp)

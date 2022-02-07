@@ -16,6 +16,8 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Project-wide utilities file"""
 
+import os
+import h5py
 import time
 import numpy as np
 import pprint
@@ -109,6 +111,78 @@ def normalise_theta(theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
 #     theta[log_mask] = np.log10()
 #     offset = theta - limits[:, 0]
 #     return offset / limits[:, 1] - limits[:, 0]
+
+
+# HDF5 file IO ----------------------------------------------------------------
+
+def save_sim(path: str, theta: np.ndarray, cols: list[str], phot: np.ndarray,
+             pw: np.ndarray):
+    """Saves simulated data points to hdf5 file.
+
+    Args:
+        path: File path
+        theta: Array of physical parameters used in forward model
+        cols: list of free parameter names
+        phot: Simulated photometric observations (flux)
+        obs: Effective wavelengths for each of the filters
+    """
+
+    with h5py.File(path, 'w') as f:
+        grp = f.create_group('samples')
+
+        ds_x = grp.create_dataset('theta', data=theta, maxshape=(None,theta.shape[1]), chunks=True)
+        ds_x.attrs['columns'] = cols
+        ds_x.attrs['description'] = 'Parameters used by simulator'
+
+        ds_y = grp.create_dataset('simulated_y', data=phot, maxshape=(None,phot.shape[1]), chunks=True)
+        ds_y.attrs['description'] = 'Response of simulator'
+
+        # Wavelengths at for each of the simulated_y
+        ds_wl = grp.create_dataset('wavelengths', data=pw)
+        ds_wl.attrs['description'] = 'Effective wavelengths for each of the filters'
+
+
+def _must_get_grp(f: h5py.File, key: str) -> h5py.Group:
+    g = f.get(key)
+    assert g is not None and isinstance(g, h5py.Group)
+    return g
+
+
+def _must_get_dset(g: h5py.Group, key: str) -> h5py.Dataset:
+    d = g.get(key)
+    assert d is not None and isinstance(d, h5py.Dataset)
+    return d
+
+
+def join_partial_results(save_dir: str, n_samples: int, concurrency: int) -> None:
+    base = os.path.join(save_dir, f'photometry_sim_{n_samples}_0.h5')
+    allf = os.path.join(save_dir, f'photometry_sim_{n_samples}.h5')
+    with h5py.File(base, 'a') as f:
+        fgrp = _must_get_grp(f, 'samples')
+        ds_theta = _must_get_dset(fgrp, 'theta')
+        ds_sim_y = _must_get_dset(fgrp, 'simulated_y')
+
+        for i in range(1, concurrency):
+            tmp_f = os.path.join(save_dir, f'photometry_sim_{n_samples}_{i}.h5')
+            with h5py.File(tmp_f, 'r') as rf:
+                tmp_grp = _must_get_grp(rf, 'samples')
+                tmp_theta = _must_get_dset(tmp_grp, 'theta')
+                tmp_sim_y = _must_get_dset(tmp_grp, 'simulated_y')
+
+                ds_theta.resize((ds_theta.shape[0] + tmp_theta.shape[0]), 0)
+                ds_sim_y.resize((ds_sim_y.shape[0] + tmp_sim_y.shape[0]), 0)
+
+                ds_theta[-ds_theta.shape[0]:] = tmp_theta
+                ds_sim_y[-ds_sim_y.shape[0]:] = tmp_sim_y
+
+
+    # Rename file with accumulated results, and remove all others.
+    os.rename(base, allf)
+
+    # Delete other partial files /after/ renaming, so that if something
+    # fails above, we don't lose data!
+    for i in range(1, concurrency):
+        os.remove(os.path.join(save_dir, f'photometry_sim_{n_samples}_{i}.h5'))
 
 
 colours = {
