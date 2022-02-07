@@ -25,12 +25,12 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
-import pandas as pd
-
-from torch.utils.data import DataLoader
 
 from abc import abstractmethod
 from typing import Any, Callable, Optional, Type
+from torch.utils.data import DataLoader
+
+import spt.config as cfg
 
 from . import utils, Model, ModelParams, InferenceParams
 from spt.types import Tensor, tensor_like
@@ -245,7 +245,9 @@ class SANParams(ModelParams):
 
 
 class SAN(Model):
-    def __init__(self, mp: SANParams, logging_callbacks: list[Callable] = []):
+
+    def __init__(self, mp: SANParams,
+                 logging_callbacks: list[Callable] = []):
         """"Sequential autoregressive network" implementation.
 
         Args:
@@ -309,13 +311,7 @@ class SAN(Model):
                     f'_dd{self.data_dim}_ms{ms}_'
                     f'lp{self.likelihood.n_params()}_bn{self.batch_norm}_'
                     f'lr{self.lr}_e{self.epochs}_bs{self.batch_size}')
-            if self.overwrite_results:
-                self.savepath_cached = f'{base}{name}{ident}.pt'
-            else:
-                n = 0
-                while os.path.exists(f'{base}{name}{ident}_{n}.pt'):
-                    n+=1
-                self.savepath_cached = f'{base}{name}{ident}_{n}.pt'
+            self.savepath_cached = f'{base}{name}{ident}.pt'
 
         return self.savepath_cached
 
@@ -420,7 +416,9 @@ class SAN(Model):
         t.random.seed()
         self.train()
 
-        start_e = self.attempt_checkpoint_recovery(ip)
+        start_e = 0
+        if not ip.retrain_model:
+            start_e = self.attempt_checkpoint_recovery(ip)
         for e in range(start_e, self.epochs):
             for i, (x, y) in enumerate(train_loader):
                 x, y = self.preprocess(x, y)
@@ -497,3 +495,4 @@ class SAN(Model):
         assert x.shape == (n * n_samples, d)
 
         return self.forward(x)
+

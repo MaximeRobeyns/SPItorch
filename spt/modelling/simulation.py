@@ -16,7 +16,6 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import h5py
 import logging
 import numpy as np
 
@@ -25,10 +24,9 @@ from copy import deepcopy
 from rich.progress import Progress
 from typing import Type
 
-from spt.load_photometry import load_observation
+from spt.load_photometry import load_observation, save_sim, \
+                                join_partial_results
 from multiprocessing import Process, Queue
-
-import spt.utils as utils
 
 from spt.config import ForwardModelParams, SamplingParams
 
@@ -107,7 +105,7 @@ def work_func(idx: int, n: int, q: Queue, sim: Simulator,
 
     save_path = os.path.join(save_dir, f'photometry_sim_{n}_{idx}.h5')
     assert isinstance(sim.obs['phot_wave'], np.ndarray)
-    utils.save_sim(save_path, theta, sim.model.free_params, phot, sim.obs['phot_wave'])
+    save_sim(save_path, theta, sim.model.free_params, phot, sim.obs['phot_wave'])
 
     q.put((idx, Status.DONE, n))
 
@@ -163,4 +161,4 @@ if __name__ == '__main__':
                 done += 1
     log.setLevel(l)
 
-    utils.join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)
+    join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)

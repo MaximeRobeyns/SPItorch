@@ -23,7 +23,7 @@ import logging
 import torch as t
 import torch.nn as nn
 
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from typing import Any, Callable, Type
 from torch.utils.data import DataLoader
 
@@ -125,7 +125,7 @@ class ModelParams(ConfigClass, ABC):
         pass
 
 
-class Model(nn.Module, ABC):
+class Model(nn.Module, metaclass=ABCMeta):
     """Base model class for SPI_torch."""
 
     def __init__(self, mp: ModelParams, logging_callbacks: list[Callable] = []):
@@ -145,6 +145,7 @@ class Model(nn.Module, ABC):
         self.cond_dim = mp.cond_dim
         self.batch_size = mp.batch_size
         self.epochs = mp.epochs
+        self.mp = mp
 
         self.is_trained: bool = False
         self.savepath_cached: str = ""
@@ -165,6 +166,11 @@ class Model(nn.Module, ABC):
             cls.offline_train = Model._save_results(cls.offline_train)
             cls._sub_init = True
         return cls
+
+    @property
+    def params(self) -> ModelParams:
+        """Returns the model parameters used to initialise this model."""
+        return self.mp
 
     @staticmethod
     def _wrap_lines(__repr__: Callable[[Any], str]) -> Callable[[Any], str]:
@@ -370,50 +376,3 @@ class Model(nn.Module, ABC):
 
 
 model_t = Type[Model]
-
-
-# Inference ====================================================================
-
-
-if __name__ == '__main__':
-    """
-    Load configurations, train the selected model and save to disk (or just
-    load from disk, as appropriate), then draw samples for a observation, outputting
-    the plot in the results directory.
-    """
-
-    # Decrepcated example of how to run an inference task...
-    # TODO implement updated method.
-
-    # from agnfinder.inference import utils
-    # from torchvision import transforms
-
-    # cfg.configure_logging()
-
-    # ip = cfg.InferenceParams()  # inference procedure parameters
-
-    # # this is poor form :(
-    # from agnfinder.inference import CMADE, CVAE
-    # mp: ModelParams = cfg.SANParams()
-    # if ip.model == CMADE:
-    #     mp = cfg.MADEParams()
-    # elif ip.model == CVAE:
-    #     mp = cfg.CVAEParams()
-
-    # train_loader, test_loader = utils.load_simulated_data(
-    #     path=ip.dataset_loc,
-    #     split_ratio=ip.split_ratio,
-    #     batch_size=mp.batch_size,
-    #     normalise_phot=utils.normalise_phot_np,
-    #     transforms=[
-    #         transforms.ToTensor()
-    #     ],
-    #     x_transforms=[utils.maggies_to_colours_np])
-    # logging.info('Created data loaders')
-
-    # model = ip.model(mp)
-    # logging.info('Initialised {model.name} model')
-
-    # # NOTE: uses cached model (if available), and saves to disk after training.
-    # model.trainmodel(train_loader, ip)
-    # logging.info('Trained {model.name} model')

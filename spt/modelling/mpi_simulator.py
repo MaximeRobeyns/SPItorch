@@ -17,7 +17,6 @@
 """Run simulation with MPI"""
 
 import os
-import h5py
 import numpy as np
 import signal
 import logging
@@ -28,10 +27,9 @@ from threading import Lock
 from rich.progress import Progress
 from multiprocessing import Manager, Process
 
-import spt.utils as utils
-
 from spt.config import ForwardModelParams, SamplingParams
 from spt.modelling.simulation import Simulator, Status
+from spt.load_photometry import save_sim, join_partial_results
 
 
 status_t = tuple[int, Status, int]  # rank, Status, N
@@ -80,7 +78,7 @@ def sim_func(status, idx: int):
 
     save_path = os.path.join(sp.save_dir, f'photometry_sim_{sp.n_samples}_{idx}.h5')
     assert isinstance(sim.obs['phot_wave'], np.ndarray)
-    utils.save_sim(save_path, theta, sim.model.free_params, phot, sim.obs['phot_wave'])
+    save_sim(save_path, theta, sim.model.free_params, phot, sim.obs['phot_wave'])
 
     # set the status to done before exiting.
     status[0] = Status.DONE
@@ -166,7 +164,7 @@ if __name__ == '__main__':
 
         logging.info(f'Joining {sp.concurrency} partial result files')
 
-        utils.join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)
+        join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)
 
 
     def work_func(mpi_comm: MPIComm):
