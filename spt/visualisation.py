@@ -18,13 +18,15 @@
 """Project-wide utilities file"""
 
 import numpy as np
+import corner
 import logging
 import matplotlib.pyplot as plt
 
-from typing import Optional
+from typing import Any, Optional, Union
 from prospect.models.sedmodel import SedModel
 from prospect.sources.ssp_basis import SSPBasis
 
+from spt.config import ForwardModelParams
 from spt.types import tensor_like
 from spt.modelling.builders import obs_dict_t
 
@@ -255,3 +257,69 @@ def visualise_model(model: SedModel, sps: SSPBasis,
     if show:
         plt.show()
     plt.close()
+
+
+def plot_corner(samples: Union[np.ndarray, list[np.ndarray]],
+                true_params: Optional[list[float]] = None,
+                lims: Optional[np.ndarray] = None,
+                labels: Optional[list[str]] = None, title: str = "",
+                description: str = ""):
+    """Create a corner plot
+
+    Args:
+        samples: the samples to plot. Expects more rows than columns.
+        true_params: (optional) overlay true parameter values in red on the plot
+        lims: (optional) provide limits for axes. Either list of same length as
+            the number of columns in `samples`, containing (lower, upper)
+            tuples, or list of floating point values for % of points to include
+            (see corner docs for more)
+        labels: axis labels (these will be free parameters)
+        title: the plot title
+        description: a descriptive sentence e.g. outlining the training
+            procedure for the plot samples.
+    """
+
+    if labels is None:
+        labels = ForwardModelParams().ordered_free_params
+        logging.info(f'Automatically seting labels to: {labels}')
+    # if lims is None:
+    #     lims = np.array(ForwardModelParams().free_param_lims())
+    #     logging.info(f'Automatically seting limits to: {lims}')
+    #     # set labels to free parameters
+
+    # silence all non-error logs:
+    log = logging.getLogger()
+    l = log.getEffectiveLevel()
+    log.setLevel(logging.ERROR)
+
+    kwargs: dict[str, Any] = {}
+    if true_params is not None:
+        kwargs['truths'] = true_params
+        kwargs['truth_color'] = '#F5274D'
+    kwargs['labels'] = labels
+    kwargs['label_kwargs'] = {'fontsize': 12, 'fontweight': 'normal'}
+
+    colours = ["#025159", "#F28705", "#03A696", "#F25D27", "#F20505"]
+
+    # D = 16
+    # kwargs['fig'] = plt.figure(figsize=(D,D), dpi=300)
+    if lims is not None:
+        kwargs['range'] = lims
+
+    if isinstance(samples, list):
+        kwargs['color'] = colours[0]
+        fig = corner.corner(samples[0], **kwargs)
+        for i in range(1, len(samples)):
+            kwargs['color'] = colours[i]
+            corner.corner(samples[i], fig=fig, **kwargs)
+    else:
+        kwargs['color'] = '#0A1929'
+        fig = corner.corner(samples, **kwargs)
+
+    fig.text(0.05, 1.04, s=title, fontfamily='sans-serif',
+             fontweight='demibold', fontsize=25)
+    fig.text(0.05, 1.005, s=description, fontfamily='sans-serif',
+             fontweight='normal', fontsize=14)
+    fig.patch.set_facecolor('white')
+
+    log.setLevel(l)

@@ -60,7 +60,10 @@ def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_di
     if observation is not None:
         f, m, mu = load_photometry.load_observation_for_prospector(
             observation, filters)
-        obs['_fake_observation'] = False
+        if 'index' in observation:
+            obs['_fake_observation'] = False
+        else:
+            obs['_fake_observation'] = True
     else:
         f, m, mu = load_photometry.load_dummy_observation(filters)
         obs['_fake_observation'] = True

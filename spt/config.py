@@ -81,13 +81,12 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 class SamplingParams(ConfigClass):
 
     # n_samples: int = int(50e6)
-    n_samples: int = int(1e5)
-    concurrency: int = 4
+    n_samples: int = int(10e6)
+    concurrency: int = 12
     observation: bool = False  # use real observation as obs... should have no effect
-    save_dir = './data/dsets/ntesting/'  # Make this unique
+    save_dir: str = './data/dsets/dev/'
     combine_samples: bool = True  # combine partial samples into one big file?
-    # cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
-    cmethod: ConcurrencyMethod = ConcurrencyMethod.native  # how to multithread
+    cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
 
 # ============================ Inference Parameters ===========================

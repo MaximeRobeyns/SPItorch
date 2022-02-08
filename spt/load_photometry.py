@@ -148,9 +148,9 @@ def load_catalogue(catalogue_loc: str, filters: list[Filter],
 
 
 def load_observation(index: Optional[int] = None,
-                catalogue_loc: Optional[str] = None,
-                filters: Optional[list[Filter]] = None,
-                ) -> pd.Series:
+                     catalogue_loc: Optional[str] = None,
+                     filters: Optional[list[Filter]] = None,
+                     ) -> pd.Series:
     """Load an observation from a catalogue of real-world observations.
 
     Args:
@@ -163,7 +163,7 @@ def load_observation(index: Optional[int] = None,
             list in the ForwardModelParams will be used.
 
     Returns:
-        tuple[pd.Series, int]: the observation's photometry, and catalogue index used
+        pd.Series: the observation
     """
     if catalogue_loc is None or filters is None:
         from spt.config import ForwardModelParams, InferenceParams
@@ -182,6 +182,27 @@ def load_observation(index: Optional[int] = None,
     df_series['idx'] = index
     assert isinstance(df_series, pd.Series)
     return df_series
+
+
+def sim_observation(filters: list[Filter], phot: np.ndarray,
+                    phot_unc: Optional[np.ndarray] = None) -> pd.Series:
+    """Build an observation from (e.g. a simulated) observation supplied
+    directly as numpy array.
+
+    Args:
+        filters: The SPS filter list to use
+        phot: photometric observations (maggies) to use.
+        phot_unc: (optional) observation uncertainty, if you have it. Otherwise
+            it will be faked.
+
+    Returns:
+        pd.Series: the observation
+    """
+
+    m = pd.Series(phot, [f.maggie_col for f in filters])
+    pu = calculate_maggie_uncertainty(phot/100, phot) if phot_unc is None else phot_unc
+    mu = pd.Series(pu, [f.maggie_error_col for f in filters])
+    return m.combine_first(mu)
 
 
 # TODO port get_simulated_observation
@@ -294,6 +315,16 @@ def get_norm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]
         min = np.finfo(yy.dtype).eps
         max = np.finfo(yy.dtype).max
         return np.where(islog, np.log10(np.clip(yy, min, max)), yy)
+
+    return f
+
+def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
+    lims = np.array(fp.free_param_lims())
+    islog = np.array(fp.is_log())
+
+    def f(yy: np.ndarray) -> np.ndarray:
+        y = denormalise_theta(yy, lims)
+        return np.where(islog, 10**(y), y)
 
     return f
 
