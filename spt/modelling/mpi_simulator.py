@@ -76,7 +76,7 @@ def sim_func(status, idx: int):
     status[0] = Status.SAVING
     status[1] = N
 
-    save_path = os.path.join(sp.save_dir, f'photometry_sim_{sp.n_samples}_{idx}.h5')
+    save_path = os.path.join(sp.save_dir, f'photometry_sim_{N}_{idx}.h5')
     assert isinstance(sim.obs['phot_wave'], np.ndarray)
     save_sim(save_path, theta, sim.model.free_params, phot, sim.obs['phot_wave'])
 

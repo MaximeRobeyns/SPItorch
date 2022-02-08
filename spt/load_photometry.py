@@ -351,7 +351,7 @@ def _must_get_dset(g: h5py.Group, key: str) -> h5py.Dataset:
 
 
 def join_partial_results(save_dir: str, n_samples: int, concurrency: int) -> None:
-    base = os.path.join(save_dir, f'photometry_sim_{n_samples}_0.h5')
+    base = os.path.join(save_dir, f'photometry_sim_{n_samples//concurrency}_0.h5')
     allf = os.path.join(save_dir, f'photometry_sim_{n_samples}.h5')
     with h5py.File(base, 'a') as f:
         fgrp = _must_get_grp(f, 'samples')
@@ -359,7 +359,7 @@ def join_partial_results(save_dir: str, n_samples: int, concurrency: int) -> Non
         ds_sim_y = _must_get_dset(fgrp, 'simulated_y')
 
         for i in range(1, concurrency):
-            tmp_f = os.path.join(save_dir, f'photometry_sim_{n_samples}_{i}.h5')
+            tmp_f = os.path.join(save_dir, f'photometry_sim_{n_samples//concurrency}_{i}.h5')
             with h5py.File(tmp_f, 'r') as rf:
                 tmp_grp = _must_get_grp(rf, 'samples')
                 tmp_theta = _must_get_dset(tmp_grp, 'theta')
@@ -378,7 +378,7 @@ def join_partial_results(save_dir: str, n_samples: int, concurrency: int) -> Non
     # Delete other partial files /after/ renaming, so that if something
     # fails above, we don't lose data!
     for i in range(1, concurrency):
-        os.remove(os.path.join(save_dir, f'photometry_sim_{n_samples}_{i}.h5'))
+        os.remove(os.path.join(save_dir, f'photometry_sim_{n_samples//concurrency}_{i}.h5'))
 
 
 class InMemoryObsDataset(Dataset):
