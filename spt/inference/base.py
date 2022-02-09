@@ -259,7 +259,8 @@ class Model(nn.Module, metaclass=ABCMeta):
 
 
     def attempt_checkpoint_recovery(self, ip: InferenceParams) -> int:
-        """Attempts to load the latest checkpoint file.
+        """Attempts to load the latest checkpoint file, only if
+        ip.retrain_model is False, and use_existing_checkpoints is True.
 
         Returns:
             int: the checkpoint number
@@ -276,7 +277,7 @@ class Model(nn.Module, metaclass=ABCMeta):
             return 0
 
         checkpoints = os.listdir(checkpoint_dir)
-        if not ip.use_existing_checkpoints:
+        if ip.retrain_model and not ip.use_existing_checkpoints:
             logging.info(f'Removing old checkpoints from {checkpoint_dir}')
             r = re.compile('checkpoint_\d+\.pt$')
             files = [c for c in checkpoints if r.match(c)]

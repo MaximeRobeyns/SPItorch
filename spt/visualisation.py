@@ -148,14 +148,14 @@ def _style_plot(fig: plt.Figure, ax: plt.Axes, xmin: float, xmax: float,
 
 
 def _describe_model(model: SedModel):
-    return ', '.join(["{}={}".format(p, model.params[p][0])
-                    for p in model.free_params])
+    return ', '.join([f'{p}={model.params[p][0]:.4f}'
+                     for p in model.free_params])
 
 # -----------------------------------------------------------------------------
 
 
 def visualise_obs(obs: obs_dict_t, show: bool = True, save: bool = False,
-                  path: str = None):
+                  path: str = None, title: str = None):
     """Visualise a loaded observation dictionary.
 
     Args:
@@ -163,13 +163,17 @@ def visualise_obs(obs: obs_dict_t, show: bool = True, save: bool = False,
         show: Whether to show the plot
         save: Whether to save the plot
         path: Filepath to save the plot at (default './results/obs.png')
+        title: An optional title to override the default (Observed Photometry)
     """
     xbounds, ybounds = _get_bounds(obs)
     fig, ax = plt.subplots(figsize=(16, 8), dpi=300)
     _plot_obs_photometry(obs)
     _plot_filters(obs, *ybounds)
 
-    fig.text(0.06, 1.035, s="Observed Photometry", fontfamily='sans-serif',
+    if title is None:
+        title = "Observed Photometry"
+
+    fig.text(0.06, 1.035, s=title, fontfamily='sans-serif',
              fontweight='demibold', fontsize=19)
     fig.text(0.06, 1.007, s=f'Filters: {str(obs["filternames"])}',
              fontfamily='sans-serif', fontweight='normal', fontsize=10,
@@ -190,7 +194,7 @@ def visualise_model(model: SedModel, sps: SSPBasis,
                     theta: Optional[tensor_like] = None,
                     obs: Optional[obs_dict_t] = None,
                     show: bool = True, save: bool = False,
-                    path: str = None):
+                    path: str = None, title: str = None):
     """Visualise output from SedPy model at optionally specified parameters.
 
     Args:
@@ -202,6 +206,7 @@ def visualise_model(model: SedModel, sps: SSPBasis,
         show: Whether to show the plot
         save: Whether to save the plot
         path: Filepath to save the plot at (default './results/model.png')
+        title: An optional title to override the default (Modelled Photometry)
     """
     fig, ax = plt.subplots(figsize=(16, 8), dpi=300)
     omit_obs = False
@@ -241,7 +246,10 @@ def visualise_model(model: SedModel, sps: SSPBasis,
                     markerfacecolor='none', markeredgecolor=colours['r'],
                     markeredgewidth=3)
 
-    fig.text(0.07, 1.035, s="Modelled Photometry", fontfamily='sans-serif',
+    if title is None:
+        title = "Modelled Photometry"
+
+    fig.text(0.07, 1.035, s=title, fontfamily='sans-serif',
              fontweight='demibold', fontsize=19)
     fig.text(0.07, 1.007, s=f'{_describe_model(model)}',
              fontfamily='sans-serif', fontweight='normal', fontsize=10,

@@ -105,7 +105,7 @@ class InferenceParams(inference.InferenceParams):
 
     # Filepath to hdf5 file or directory of files to use as offline dataset
     # dataset_loc: str = SamplingParams().save_dir
-    dataset_loc: str = './data/dsets/example/photometry_sim_100000.h5'
+    dataset_loc: str = './data/dsets/dev/photometry_sim_10000000.h5'
     # dataset_loc: str = './data/dsets/dev/'
 
     # Force re-train an existing model
@@ -115,7 +115,7 @@ class InferenceParams(inference.InferenceParams):
     # set to False, any previous checkpoints are deleted!
     use_existing_checkpoints: bool = True
 
-    ident: str = 'test_model'
+    ident: str = 'development'
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
@@ -176,7 +176,7 @@ class DynestyParams(ConfigClass):
 class SANParams(san.SANParams):
 
     # Number of epochs to train for (offline training)
-    epochs: int = 20
+    epochs: int = 1
 
     batch_size: int = 1024
 

@@ -417,8 +417,8 @@ class SAN(Model):
         self.train()
 
         start_e = 0
-        if not ip.retrain_model:
-            start_e = self.attempt_checkpoint_recovery(ip)
+        # if not ip.retrain_model:
+        start_e = self.attempt_checkpoint_recovery(ip)
         for e in range(start_e, self.epochs):
             for i, (x, y) in enumerate(train_loader):
                 x, y = self.preprocess(x, y)

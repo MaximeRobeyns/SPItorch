@@ -60,13 +60,19 @@ def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_di
     if observation is not None:
         f, m, mu = load_photometry.load_observation_for_prospector(
             observation, filters)
-        if 'index' in observation:
+        if 'idx' in observation:
+            obs['_index'] = observation['idx']
             obs['_fake_observation'] = False
-        else:
-            obs['_fake_observation'] = True
+
+        if 'survey' in observation:
+            obs['_survey'] = observation['survey']
     else:
         f, m, mu = load_photometry.load_dummy_observation(filters)
+        # A fake observations is one that clearly can't be fitted (e.g. all
+        # ones). For this purpose, a simulated observation is not a 'fake'
+        # observation...
         obs['_fake_observation'] = True
+
 
     obs['filters'] = f
     obs['maggies'] = m

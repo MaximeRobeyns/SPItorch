@@ -16,8 +16,10 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Classes to describe modelling parameters"""
 
-from abc import abstractmethod
+import numpy as np
 import logging
+
+from abc import abstractmethod
 
 from typing import Any, Optional, Type, Union
 from prospect.models.priors import Prior, Uniform
@@ -83,6 +85,9 @@ class Parameter:
         else:
             self.disp_floor = None
 
+        self._range_min = range_min
+        self._range_max = range_max
+
         self.min = 10**range_min if self.log else range_min
         self.max = 10**range_max if self.log else range_max
 
@@ -98,6 +103,8 @@ class Parameter:
             'isfree': self.isfree,
             'N': self.N,
             '_is_log': self.log,
+            '_range_min': self._range_min,
+            '_range_max': self._range_max,
         }
         if self.disp_floor is not None:
             values['disp_floor']  = self.disp_floor
@@ -171,12 +178,30 @@ class ParamConfig:
         fp.sort()
         return fp
 
-    def free_param_lims(self) -> list[tuple[float, float]]:
+    def free_param_lims(self, log: bool = True) -> list[tuple[float, float]]:
+        """Get the (prior) limits on the free parameters
+
+        Args:
+            log: Whether to return the log-range for log parameters.
+
+        Returns:
+            list[tuple[float, float]]: list of tuples in standard parameter
+                order, with min_max values.
+
+        Raises:
+            RuntimeError: [TODO:description]
+        """
         lims: list[tuple[float, float]] = []
         fp = self.free_params
         ofp = self.ordered_free_params
         for p in ofp:
-            prior = fp[p]['prior']
+            par = fp[p]
+            if log and par['_is_log']:
+                if '_range_min' in par and '_range_max' in par:
+                    rmin, rmax = par['_range_min'], par['_range_max']
+                    lims.append((float(rmin), float(rmax))) # type: ignore
+                    continue
+            prior = par['prior']
             assert isinstance(prior, Prior)
             if 'mini' not in prior.params.keys() or \
                'maxi' not in prior.params.keys():
@@ -184,7 +209,10 @@ class ParamConfig:
                 raise RuntimeError((
                     f'Could not find "mini" and "maxi" attributes of free '
                     'parameter prior {prior}'))
-            lims.append((prior.params['mini'], prior.params['maxi']))
+            if log and par['_is_log']:
+                lims.append((np.log10(prior.params['mini']), np.log10(prior.params['maxi'])))
+            else:
+                lims.append((prior.params['mini'], prior.params['maxi']))
         return lims
 
     def is_log(self) -> list[bool]:

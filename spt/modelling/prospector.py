@@ -81,11 +81,21 @@ def save_and_load(mm: MCMCMethod) -> Callable[[ffit_t], Callable[["Prospector", 
             if self.obs['_fake_observation']:
                 self._fake_obs_warning(f'fit_model on {mm.value}')
 
-            hfile = self.results_fpath(self.index, mm)
-            if os.path.exists(hfile):
-                logging.info(f'Found results file ({hfile}) for fit: skipping.')
-                self.load_fit_results(hfile)
-                return
+            if 'always_fit' in kwargs:
+                always_fit = kwargs['always_fit']
+            else:
+                always_fit = False
+
+            if '_survey' in self.obs:
+                hfile = self.results_fpath(self.index, mm, survey=self.obs['_survey'])
+            else:
+                hfile = self.results_fpath(self.index, mm)
+
+            if not always_fit:
+                if os.path.exists(hfile):
+                    logging.info(f'Found results file ({hfile}) for fit: skipping.')
+                    self.load_fit_results(hfile)
+                    return
 
             run_params = {}
             kwargs |= {'run_params': run_params}
@@ -119,6 +129,8 @@ class Prospector:
         mp = mp()
         if observation is not None and 'idx' in observation:
             self.index = int(observation.idx)
+        else:
+            self.index = -1
 
         self.obs = mp.build_obs_fn(mp.filters, observation)
         logging.info(f'Created obs dict with filters\n{[f.name for f in self.obs["filters"]]}')
@@ -174,15 +186,16 @@ class Prospector:
         self.model.set_parameters(theta)
 
     def results_fpath(self, index: int = None, method: MCMCMethod = None,
-                      p: fit_params_t = None) -> str:
+                      p: fit_params_t = None, survey: str = None) -> str:
         if p is None:
             if method == MCMCMethod.EMCEE:
                 p = EMCEEParams()
             else:
                 p = DynestyParams()
-        ip = InferenceParams()
-        survey = os.path.basename(ip.catalogue_loc).split('.')[0]
-        return os.path.join(p.results_dir, f'{survey}_{index}.h5')
+        if survey is not None:
+            return os.path.join(p.results_dir, f'{survey}_{index}.h5')
+        else:
+            return os.path.join(p.results_dir, f'{index}.h5')
 
     def numerical_fit(self, fp: FittingParams = FittingParams()) -> list[Any]:
         """'Burn in' for layer MCMC sampling using a numerical method.
@@ -207,7 +220,7 @@ class Prospector:
 
     @save_and_load(MCMCMethod.EMCEE)
     def emcee_fit(self, ep: fit_params_t = EMCEEParams(),
-                  run_params: prun_params_t = {}) -> None:
+                  run_params: prun_params_t = {}, always_fit: bool =False) -> None:
         """Runs MCMC method to update the value of self.model.theta
         """
         assert isinstance(ep, EMCEEParams)
@@ -233,7 +246,7 @@ class Prospector:
 
     @save_and_load(MCMCMethod.Dynesty)
     def dynesty_fit(self, dp: fit_params_t = DynestyParams(),
-                    run_params: prun_params_t = {}) -> None:
+                    run_params: prun_params_t = {}, always_fit: bool = False) -> None:
         """Runs Dynesty (nested) sampling to update the value of self.model.theta"""
         assert isinstance(dp, DynestyParams)
         logging.info('Running Dynesty fitting with parameters:\n{dp}')
@@ -248,7 +261,7 @@ class Prospector:
         logging.info(f'Finished Dynesty sampling in {self.fit_output["sampling"][1]:.2f}s')
 
     def load_fit_results(self, file: str = None, index: int = None,
-                        method: MCMCMethod = None) -> None:
+                         method: MCMCMethod = None, survey: str = None) -> None:
         """Attempt to load the results of fitting; either by providing a path
         to the hdf5 results file directly, or by specifying both the index and
         fitting method.
@@ -258,6 +271,8 @@ class Prospector:
             index: index of galaxy to try to load
             method: MCMC method of results to find.
 
+        # TODO refactor to take [method, obs_dict] as argument to infer file name.
+
         Implicit Returns:
             Sets the self.fit_output property with the results.
         """
@@ -265,7 +280,7 @@ class Prospector:
             if index is None or method is None:
                 raise ValueError(
                     'Please specify both the index and fitting method')
-            file = self.results_fpath(index, method)
+            file = self.results_fpath(index, method, survey=survey)
         if not os.path.exists(file):
             logging.error(f'File {file} cannot be found.')
             raise ValueError(f'Bad file path {file}')
@@ -275,30 +290,25 @@ class Prospector:
         # self.sps = reader.get_sps(self.fit_output)
         logging.info('Loaded fitting results.')
 
-
     # def photometry(self, theta: Optional[np.ndarray] = self.model.theta
     #               ) -> np.ndarray:
     #     """Return the simulated photometric observations
-
-    #     Args:
-    #         theta: [TODO:description]
-
-    #     Returns:
-    #         np.ndarray: [TODO:description]
     #     """
     #     raise NotImplementedError
 
     def visualise_obs(self, show: bool=False, save: bool=True,
-                      path: str = './results/obs.png'):
+                      path: str = './results/obs.png',
+                      title: str = None):
         logging.info('[bold]Visualising observations')
         if self.obs['_fake_observation']:
             self._fake_obs_warning('visualise_obs')
-        vis.visualise_obs(self.obs, show, save, path)
+        vis.visualise_obs(self.obs, show, save, path, title)
 
 
     def visualise_model(self, theta: Optional[tensor_like] = None,
                         no_obs: bool = False, show: bool = False,
-                        save: bool = True, path: str = './results/model.png'):
+                        save: bool = True, path: str = './results/model.png',
+                        title: str = None):
         """Visualise predicted photometry from a theta vector.
 
         Args:
@@ -310,6 +320,7 @@ class Prospector:
             show: show the plot?
             save: save the plot?
             path: where to save the plot.
+            title: An optional title (defaults to Modelled Photometry)
         """
         logging.info('[bold]Visualising model predictions')
 
@@ -318,4 +329,4 @@ class Prospector:
 
         vis.visualise_model(self.model, self.sps, theta,
                             None if no_obs else self.obs, show,
-                            save, path)
+                            save, path, title)

@@ -23,6 +23,7 @@ import sys
 import h5py
 import random
 import logging
+import warnings
 import torch as t
 import numpy as np
 import pandas as pd
@@ -180,12 +181,15 @@ def load_observation(index: Optional[int] = None,
 
     df_series = add_maggies_cols(df.iloc[index], filters)
     df_series['idx'] = index
+    df_series['survey'] = os.path.basename(catalogue_loc).split('.')[0]
+
     assert isinstance(df_series, pd.Series)
     return df_series
 
 
 def sim_observation(filters: list[Filter], phot: np.ndarray,
-                    phot_unc: Optional[np.ndarray] = None) -> pd.Series:
+                    phot_unc: Optional[np.ndarray] = None, index: int = None,
+                    dset: str = None) -> pd.Series:
     """Build an observation from (e.g. a simulated) observation supplied
     directly as numpy array.
 
@@ -195,6 +199,11 @@ def sim_observation(filters: list[Filter], phot: np.ndarray,
         phot_unc: (optional) observation uncertainty, if you have it. Otherwise
             it will be faked.
 
+    Recommended for use with Prospector's MCMC methods later:
+
+        index: the index of the observation in your simulated dataset
+        dset: the name of your simulated dataset
+
     Returns:
         pd.Series: the observation
     """
@@ -202,7 +211,12 @@ def sim_observation(filters: list[Filter], phot: np.ndarray,
     m = pd.Series(phot, [f.maggie_col for f in filters])
     pu = calculate_maggie_uncertainty(phot/100, phot) if phot_unc is None else phot_unc
     mu = pd.Series(pu, [f.maggie_error_col for f in filters])
-    return m.combine_first(mu)
+    ret = m.combine_first(mu)
+    if index is not None:
+        ret['idx'] = index
+    if dset is not None:
+        ret['survey'] = os.path.basename(dset).split('.')[0]
+    return ret
 
 
 # TODO port get_simulated_observation
@@ -301,30 +315,27 @@ def normalise_theta(theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
     distribution of points within this range."""
     assert theta.shape[1] == limits.shape[0]
     offset = theta - limits[:, 0] # type: ignore
-    return offset / limits[:, 1] - limits[:, 0]
+    return offset / (limits[:, 1] - limits[:, 0]) # type: ignore
 
 
 def get_norm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
-    lims = np.array(fp.free_param_lims())
+    lims = np.array(fp.free_param_lims(log=True))
     islog = np.array(fp.is_log())
 
     def f(y: np.ndarray) -> np.ndarray:
-        yy = normalise_theta(y, lims)
-        # TODO: this doesn't feel great... Look into the impact of clipping
-        # (esp min.)
-        min = np.finfo(yy.dtype).eps
-        max = np.finfo(yy.dtype).max
-        return np.where(islog, np.log10(np.clip(yy, min, max)), yy)
+        warnings.simplefilter("ignore")
+        y = np.where(islog, np.log10(y), y)
+        return normalise_theta(y, lims)
 
     return f
 
 def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
-    lims = np.array(fp.free_param_lims())
+    lims = np.array(fp.free_param_lims(log=True))
     islog = np.array(fp.is_log())
 
     def f(yy: np.ndarray) -> np.ndarray:
         y = denormalise_theta(yy, lims)
-        return np.where(islog, 10**(y), y)
+        return np.where(islog, 10**np.clip(y, -10, 20), y)
 
     return f
 
@@ -547,7 +558,7 @@ def load_simulated_data(
         test_batch_size: int = None,
         phot_transforms: list[Callable[[Any], Any]] = [],
         theta_transforms: list[Callable[[Any], Any]] = [],
-        split_seed: int = None
+        split_seed: int = 0
         ) -> tuple[DataLoader, DataLoader]:
     """Load simulated (theta, photometry) data as train and test loaders.
 
