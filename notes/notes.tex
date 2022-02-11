@@ -1,0 +1,108 @@
+\documentclass[a4paper]{article}
+
+\input{math_commands.tex}
+
+\usepackage[ruled,vlined,linesnumbered,nosemicolon]{algorithm2e}
+\usepackage{alltt}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage{bm}
+\usepackage{caption}
+\usepackage{ccicons}
+\usepackage{changepage}
+\usepackage{ebproof}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage[utf8x]{inputenc}
+\usepackage{listings}
+\usepackage{mathdots}
+\usepackage{mathrsfs}
+\usepackage{mathtools}
+\usepackage{mdframed}
+\usepackage{microtype}
+\usepackage{multirow}
+\usepackage[round, authoryear]{natbib}
+\usepackage{pdflscape}
+\usepackage{pgfplots}
+\usepackage{relsize}
+\usepackage{siunitx}
+\usepackage{slashed}
+\usepackage{stmaryrd}
+\usepackage{tabularx}
+\usepackage{tcolorbox}
+\usepackage{textcomp}
+\usepackage{tikz}
+% \usepackage{tkz-euclide} (causes some sort of compilation error...)
+\usepackage{url}
+
+
+\usepackage{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage[all]{xy}
+\usepackage{imakeidx}
+
+\newcommand*\acr[1]{\textscale{.85}{#1}} % Custom acronyms command
+
+% algorithms
+\SetKwProg{Fn}{}{}{end}
+\SetKwComment{Comment}{$\triangleright$\ }{}
+
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\definecolor{light-gray}{gray}{0.95}
+
+\newcommand\tab[1][1cm]{\hspace*{#1}}
+% \newcommand{\mono}{\texttt}
+\newcommand{\mono}[1]{{\texttt{#1}}}
+
+\newcommand{\nand}{\bar{\land}}
+\newcommand{\nor}{\underline{\lor}}
+
+\newenvironment{haskell}{\lstinline[language=Haskell,basicstyle=\small\ttfamily]$}{$}
+\newenvironment{Haskell}{\begin{lstlisting}[language=Haskell,basicstyle=\small\ttfamily,breaklines=true,mathescape=true,escapeinside={£}{£)}]}{\end{lstlisting}}
+\newenvironment{Ccode}{\begin{lstlisting}[language=C,basicstyle=\small\ttfamily,breaklines=true,escapeinside={£}{£)}]}{\end{lstlisting}}
+
+\geometry{
+    a4paper,
+    bottom=90pt
+}
+
+\newcommand{\P}{\mathrm{P}}
+\newcommand{\Q}{\mathrm{Q}}
+
+\title{Simulation-Based Inference}
+
+\begin{document}
+
+\maketitle
+
+\begin{algorithm}[h]
+  \KwIn{Forward model $f$, prior over physical parameters $\P(\rvz)$.}
+  \KwOut{Approximate posterior $\Q_{\phi}(\rvz \vert \rvx)$. Also a likelihood
+  $\P_{\rvw}(\rvx \vert \rvz)$.}
+  \SetKw{KwOr}{or}
+  \SetKw{goto}{goto}
+  \Repeat {$\text{Until reconstructions match the data}$}{
+      Simulate $\{(\rvz_i, \rvx_i)\}^N_{i=1}$ pairs, using $\rvx_i \gets f(\rvz_i)$,
+      $\rvz_i \sim \P(\rvz_i)$.\;
+      Train $\Q_\vphi(\rvz \vert \rvx)$ via \acr{ML}: $$\argmax_\vphi
+      \sum^N_{i=1}\log \Q_\vphi(\rvz_i \vert \rvx_i)$$ \;
+      Train a neural likelihood (or likelihood-ratio?) $$\argmax_\rvw\ \sum^N_{i=1} \log \P_\rvw(\rvx_i \vert
+      \rvz_i)$$\;
+      Minimise a divergence (e.g. $\KL$):
+      $$
+      \argmin_\vphi \KL\big[ \Q_{\phi} (\rvz \vert \rvx_{\text{true}}) \Vert
+          \P(\rvz \vert \rvx_{\text{true}}) \big]
+      $$
+      where $\P(\rvz \vert \rvx_{\text{true}}) \propto \P_\rvw(\rvx_{\text{true}}
+      \vert \rvz)\P(\rvz)$.\;
+  }
+  \caption{\label{algo:train}Training Procedure.}
+\end{algorithm}
+
+\end{document}
