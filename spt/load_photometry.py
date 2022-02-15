@@ -277,7 +277,8 @@ def load_dummy_observation(filter_sel: list[Filter]
 # Transformations =============================================================
 
 
-def denormalise_theta(norm_theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
+def denormalise_theta(norm_theta: Union[np.ndarray, Tensor],
+        limits: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
     """Rescale norm_theta lying within [0, 1] range; not altering the
     distribution of points.
     """
@@ -336,6 +337,16 @@ def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarra
     def f(yy: np.ndarray) -> np.ndarray:
         y = denormalise_theta(yy, lims)
         return np.where(islog, 10**np.clip(y, -10, 20), y)
+
+    return f
+
+def get_denorm_theta_t(fp: ForwardModelParams) -> Callable[[Tensor], Tensor]:
+    lims = t.tensor(fp.free_param_lims(log=True))
+    islog = t.tensor(fp.is_log())
+
+    def f(yy: Tensor) -> Tensor:
+        y = denormalise_theta(yy, lims)
+        return t.where(islog, 10**t.clip(y, -10, 20), y)  # type: ignore
 
     return f
 
@@ -552,6 +563,92 @@ class InMemoryObsDataset(Dataset):
 # For backwards compatability
 ObsDataset = InMemoryObsDataset
 
+class RealObsDataset(Dataset):
+
+    def __init__(self, path: str, filters: list[Filter],
+                 transforms: list[Callable[[Any], Any]] = [],
+                 x_transforms: list[Callable[[Any], Any]] = [],
+                 y_transforms: list[Callable[[Any], Any]] = []):
+        """PyTorch Dataset for galaxy observations.
+
+        Args:
+            path: path to a hdf5 or fits file containing the catalogue
+            filters: filters (used to infer required column names)
+            transforms: any transformations to apply to the data now
+            x_transforms: photometry-specific transforms
+            y_transforms: parameter-specific transforms
+        """
+        self.transforms = transforms
+        self.x_transforms = x_transforms
+        self.y_transforms = y_transforms
+
+        xs, ys = self._get_x_y_from_file(path, filters)
+
+        # Eagerly compute transformsations (rather than during __getitem__)
+        for xtr in self.x_transforms:
+            xs = xtr(xs)
+        for ytr in self.y_transforms:
+            ys = ytr(ys)
+
+        self._x_dim, self._y_dim = xs.shape[-1], ys.shape[-1]
+        self.dataset = np.concatenate((xs, ys), -1)
+        logging.info('Galaxy dataset loaded')
+
+    def _get_x_y_from_file(self, path: str, filters: list[Filter]
+            ) -> tuple[np.ndarray, np.ndarray]:
+        assert os.path.exists(path), f'Could not find catalogue {path}'
+
+        df = load_catalogue(path, filters, True)
+        assert df is not None
+
+        xs_cols = [f.maggie_col for f in filters]
+        ys_col = ['redshift']
+
+        xs, ys = df[xs_cols].to_numpy(), df[ys_col].to_numpy()
+
+        return xs, ys
+
+    def get_xs(self) -> Any:
+        """Just return all the xs (photometric measurements) in the dataset
+
+        Returns type Any (not Tensor, or np.ndarray) because the
+        transformations could be arbitrary.
+        """
+        xs = self.dataset[:, :self._x_dim]
+        for tr in self.transforms:
+            xs = tr(xs)
+        return xs.squeeze()
+
+    def get_ys(self) -> Any:
+        """Return the y (i.e. redshift) values in the dataset
+
+        Returns type Any (not Tensor, or np.ndarray) because the
+        transformations could be arbitrary.
+        """
+        ys = self.dataset[:, self._x_dim:]
+        for tr in self.theta_transforms:
+            ys = tr(ys)
+        return ys.squeeze()
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, idx: Union[int, list[int], Tensor]
+            ) -> tuple[tensor_like, tensor_like]:
+
+        if isinstance(idx, Tensor):
+            idx = idx.to(dtype=t.int).tolist()
+
+        data = self.dataset[idx]
+        if data.ndim == 1:
+            data = np.expand_dims(data, 0)
+        xs, ys = data[:, :self._x_dim], data[:, self._x_dim:]
+
+        for tr in self.transforms:
+            xs, ys = tr(xs).squeeze(), tr(ys).squeeze()
+
+        return xs, ys
+
 
 def load_simulated_data(
         path: str, split_ratio: float = 0.8, batch_size: int = 1024,
@@ -591,6 +688,58 @@ def load_simulated_data(
     n_test = len(dataset) - n_train
 
     rng = t.Generator().manual_seed(split_seed) if split_seed is not None else None
+    train_set, test_set = random_split(dataset, [n_train, n_test], rng)
+
+    train_loader = DataLoader(train_set, **train_kwargs)
+    test_loader = DataLoader(test_set, **test_kwargs)
+
+    return train_loader, test_loader
+
+
+def load_real_data(path: str, filters: list[Filter], split_ratio: float=0.8,
+                   batch_size: int=1024, test_batch_size: Optional[int]=None,
+                   transforms: list[Callable[[Any], Any]] = [t.from_numpy],
+                   x_transforms: list[Callable[[Any], Any]] = [],
+                   y_transforms: list[Callable[[Any], Any]] = [],
+                   split_seed: int = 0
+            ) -> tuple[DataLoader, DataLoader]:
+    """Load real (photometric observation) data as PyTorch DataLoaders
+
+    Since we only have access to the redshift parameter and not any other
+    physical parameters, the xs are the photometryc observations, and the ys
+    are just the redshift values.
+
+    Args:
+        path: file path path to the .fits / .hdf5 file containing the simulated data
+        filters: list of filters used in the catalogue (used to infer the required columns)
+        split_ratio: train / test split ratio
+        batch_size: training batch size (default 1024)
+        test_batch_size: optional different batch size for testing (defaults to
+            `batch_size`)
+        transforms: list of transformations to apply to the data before returning
+        x_transforms: any photometry-specific transformations
+        y_transforms: any parameter-specific transformations
+        split_seed: PyTorch PRNG seed for reproducible train/test splits.
+
+    Returns:
+        tuple[DataLoader, DataLoader]: train and test DataLoaders, respectively
+    """
+    tbatch_size = test_batch_size if test_batch_size is not None else batch_size
+
+
+    cuda_kwargs = {'num_workers': 8, 'pin_memory': True}
+    train_kwargs: dict[str, Any] = {
+        'batch_size': batch_size, 'shuffle': True} | cuda_kwargs
+    test_kwargs: dict[str, Any] = {
+        'batch_size': tbatch_size, 'shuffle': True} | cuda_kwargs
+
+    # TODO: implement GalaxyDataset
+    dataset = RealObsDataset(path, filters, transforms, x_transforms, y_transforms)
+
+    n_train = int(len(dataset) * split_ratio)
+    n_test = len(dataset) - n_train
+
+    rng = t.Generator().manual_seed(split_seed)
     train_set, test_set = random_split(dataset, [n_train, n_test], rng)
 
     train_loader = DataLoader(train_set, **train_kwargs)

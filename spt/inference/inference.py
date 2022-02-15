@@ -29,7 +29,7 @@ if __name__ == '__main__':
     # TODO load model parameters dynamically based on the model type
     mp = cfg.SANParams()
     model = ip.model(mp)
-    logging.info('Initialised {model.name} model')
+    logging.info(f'Initialised {model.name} model')
 
     train_loader, test_loader = load_simulated_data(
         path=ip.dataset_loc,

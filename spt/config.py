@@ -176,7 +176,7 @@ class DynestyParams(ConfigClass):
 class SANParams(san.SANParams):
 
     # Number of epochs to train for (offline training)
-    epochs: int = 1
+    epochs: int = 3
 
     batch_size: int = 1024
 
@@ -197,7 +197,7 @@ class SANParams(san.SANParams):
     likelihood: Type[san.SAN_Likelihood] = san.MoG
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e04
+        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4
     }
 
     # Whether to use batch norm

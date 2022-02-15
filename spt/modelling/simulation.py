@@ -110,9 +110,7 @@ def work_func(idx: int, n: int, q: Queue, sim: Simulator,
     q.put((idx, Status.DONE, n))
 
 
-if __name__ == '__main__':
-
-    sp = SamplingParams()
+def main(sp: SamplingParams = SamplingParams()):
 
     C = sp.concurrency
     N = sp.n_samples // C
@@ -162,3 +160,9 @@ if __name__ == '__main__':
     log.setLevel(l)
 
     join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)
+
+
+if __name__ == '__main__':
+
+    main()
+

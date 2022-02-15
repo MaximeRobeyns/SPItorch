@@ -20,6 +20,7 @@ import numpy as np
 import logging
 
 from abc import abstractmethod
+from torch.distributions import Distribution
 
 from typing import Any, Optional, Type, Union
 from prospect.models.priors import Prior, Uniform
@@ -227,3 +228,8 @@ class ParamConfig:
                 log.append(fp[p]['_is_log'])
             # Otherwise, this must be a template parameter. Skip it.
         return log
+
+    def prior(self) -> Distribution:
+        # identify the order of the free parameters
+        #
+        raise NotImplementedError

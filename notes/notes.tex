@@ -84,7 +84,7 @@
 \begin{algorithm}[h]
   \KwIn{Forward model $f$, prior over physical parameters $\P(\rvz)$.}
   \KwOut{Approximate posterior $\Q_{\phi}(\rvz \vert \rvx)$. Also a likelihood
-  $\P_{\rvw}(\rvx \vert \rvz)$.}
+  $\P_{\rmW}(\rvx \vert \rvz)$.}
   \SetKw{KwOr}{or}
   \SetKw{goto}{goto}
   \Repeat {$\text{Until reconstructions match the data}$}{
@@ -92,17 +92,36 @@
       $\rvz_i \sim \P(\rvz_i)$.\;
       Train $\Q_\vphi(\rvz \vert \rvx)$ via \acr{ML}: $$\argmax_\vphi
       \sum^N_{i=1}\log \Q_\vphi(\rvz_i \vert \rvx_i)$$ \;
-      Train a neural likelihood (or likelihood-ratio?) $$\argmax_\rvw\ \sum^N_{i=1} \log \P_\rvw(\rvx_i \vert
+      Train a neural likelihood (or likelihood-ratio?) $$\argmax_\rmW\ \sum^N_{i=1} \log \P_\rvw(\rvx_i \vert
       \rvz_i)$$\;
       Minimise a divergence (e.g. $\KL$):
       $$
       \argmin_\vphi \KL\big[ \Q_{\phi} (\rvz \vert \rvx_{\text{true}}) \Vert
           \P(\rvz \vert \rvx_{\text{true}}) \big]
       $$
-      where $\P(\rvz \vert \rvx_{\text{true}}) \propto \P_\rvw(\rvx_{\text{true}}
+      where $\P(\rvz \vert \rvx_{\text{true}}) \propto \P_\rmW(\rvx_{\text{true}}
       \vert \rvz)\P(\rvz)$.\;
   }
   \caption{\label{algo:train}Training Procedure.}
 \end{algorithm}
+
+The \acr{ELBO} has the following form:
+\begin{align}
+    \mathcal{L}(\phi) &= \E_{\Q_{\phi}(\rvz \vert\rvx_{\text{true}})}
+        \big[
+            \log \P(\rvz, \rvx_{\text{true}}) - \log \Q_\phi(\rvz \vert
+            \rvx_{\text{true}})
+        \big] \\
+                      &= \E_{\Q_{\phi}(\rvz \vert\rvx_{\text{true}})} \left[\log
+                      \P_{\rmW}(\rvx_{\text{true}} \vert \rvz) - \log \frac{\Q_\phi(\rvz \vert
+            \rvx_{\text{true}})}{\P(\rvz)}\right]
+\end{align}
+We optimise an \acr{MC} approximation of this objective, using $K$ terms
+\[
+    \gL(\phi) \approx \sum^K_{i=1}\log \P_\rmW(\rvx_{\text{true}:j}\vert \rvz_i) - \log
+    \Q_\phi(\rvz_i \vert \rvx_{\text{true}:j}) + \log \P(\rvz_i),
+\]
+where $\rvz_i \sim \Q_\phi(\rvz_i \vert \rvx_{\text{true}:j})$.
+
 
 \end{document}

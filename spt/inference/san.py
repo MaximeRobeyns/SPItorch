@@ -19,7 +19,6 @@ Implements a "sequential autoregressive network"; a simple, sequential
 procedure for generating autoregressive samples.
 """
 
-import os
 import logging
 import numpy as np
 import torch as t
@@ -466,9 +465,11 @@ class SAN(Model):
             Tensor: a tensor of shape [n_samples, data_dim]
         """
 
-        if self.training:
-            logging.warning('Model is still in training mode during sampling! '
-                            'This is likely to give you unexpected results.')
+        self.eval()
+
+        # if self.training:
+        #     logging.warning('Model is still in training mode during sampling! '
+        #                     'This is likely to give you unexpected results.')
 
         if isinstance(x_in, np.ndarray):
             x_in = t.from_numpy(x_in)
@@ -493,6 +494,8 @@ class SAN(Model):
             x = x.repeat_interleave(n_samples, 0)
 
         assert x.shape == (n * n_samples, d)
+
+        self.train()
 
         return self.forward(x)
 
