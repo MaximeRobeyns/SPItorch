@@ -16,15 +16,20 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Classes to describe modelling parameters"""
 
+import torch as t
 import numpy as np
 import logging
+import prospect.models.priors as ppr
+import torch.distributions as tdist
 
 from abc import abstractmethod
 from torch.distributions import Distribution
-
-from typing import Any, Optional, Type, Union
 from prospect.models.priors import Prior, Uniform
 from prospect.models.templates import TemplateLibrary
+
+from typing import Any, Optional, Type, Union
+
+from spt.types import Tensor
 
 
 __all__ = ["Parameter", "pdict_t"]
@@ -229,7 +234,61 @@ class ParamConfig:
             # Otherwise, this must be a template parameter. Skip it.
         return log
 
-    def prior(self) -> Distribution:
-        # identify the order of the free parameters
-        #
-        raise NotImplementedError
+    def to_torch_priors(self, dtype: t.dtype = None, device: t.device = None
+            ) -> list[Distribution]:
+        """Returns the free parameter's priors as pytorch distributions."""
+        priors: list[Distribution] = []
+        ofp = self.ordered_free_params
+        frp = self.free_params
+        for p in ofp:
+            P = frp[p]['prior']
+            assert isinstance(P, Prior)
+            priors.append(prospector_to_torch_dist(P, dtype, device))
+        return priors
+
+
+# Prior conversions -----------------------------------------------------------
+
+
+class LogUniform(tdist.TransformedDistribution):
+    def __init__(self, lb, ub):
+        super().__init__(tdist.Uniform(lb.log(), ub.log()),
+                         tdist.ExpTransform())
+
+
+class AffineBeta(tdist.TransformedDistribution):
+    def __init__(self, alpha, beta, lb, ub):
+        super().__init__(tdist.Beta(alpha, beta),
+                         tdist.AffineTransform(lb, ub-lb))
+
+
+def prospector_to_torch_dist(P: Prior, dtype: t.dtype = None,
+                             device: t.device = None) -> Distribution:
+
+    def _t(args: float) -> Tensor:
+        return t.tensor(args, dtype=dtype, device=device)
+
+    if isinstance(P, ppr.Uniform):
+        return tdist.Uniform(_t(P.range[0]), _t(P.range[1]))
+    elif isinstance(P, ppr.TopHat):
+        return tdist.Uniform(_t(P.range[0]), _t(P.range[1]))
+    elif isinstance(P, ppr.Normal):
+        return tdist.Normal(_t(P.loc), _t(P.scale))
+    elif isinstance(P, ppr.ClippedNormal):
+        raise NotImplementedError(
+            'TODO: https://discuss.pytorch.org/t/implementing-truncated-normal-initializer/4778/20)')
+    elif isinstance(P, ppr.LogUniform):
+        return LogUniform(_t(P.range[0]), _t(P.range[1]))
+    elif isinstance(P, ppr.Beta):
+        return AffineBeta(_t(P.loc), _t(P.scale), _t(P.range[0]), _t(P.range[1]))
+    elif isinstance(P, ppr.LogNormal):
+        # TODO account for mini and maxi here too?
+        return tdist.LogNormal(_t(P.params['mode']), _t(P.params['sigma']))
+    elif isinstance(P, ppr.LogNormalLinpar):
+        raise NotImplementedError()
+    elif isinstance(P, ppr.SkewNormal):
+        raise NotImplementedError()
+    elif isinstance(P, ppr.StudentT):
+        return tdist.StudentT(_t(P.params['df']), _t(P.params['mean']), _t(P.params['scale']))
+    else:
+        raise ValueError(f'Unexpected distribution {P}')
