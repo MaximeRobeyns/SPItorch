@@ -61,6 +61,7 @@ class Simulator:
 
         TODO: remove this loop from the hot path
         """
+        # TODO: now that we have torch priors, replace with single sample
         samples = []
         for p in self.priors:
             samples.append(p.sample())

@@ -66,6 +66,12 @@ class SAN_Likelihood(object):
         """Draw a single sample from a distribution parametrised by `params`"""
         raise NotImplementedError
 
+    @abstractmethod
+    def rsample(self, params: Tensor) -> Tensor:
+        """Draw a single reparametrised sample from a distribution parametrised
+        by `params`"""
+        raise NotImplementedError
+
 
 class Gaussian(SAN_Likelihood):
 
@@ -84,6 +90,10 @@ class Gaussian(SAN_Likelihood):
         return t.distributions.Normal(
                 *self._extract_params(params)).sample()
 
+    def rsample(self, params: Tensor) -> Tensor:
+        return t.distributions.Normal(
+                *self._extract_params(params)).rsample()
+
 
 class Laplace(SAN_Likelihood):
 
@@ -100,6 +110,10 @@ class Laplace(SAN_Likelihood):
     def sample(self, params: Tensor) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).sample()
+
+    def rsample(self, params: Tensor) -> Tensor:
+        return t.distributions.Laplace(
+                *self._extract_params(params)).rsample()
 
 
 class MoG(SAN_Likelihood):
@@ -141,7 +155,6 @@ class MoG(SAN_Likelihood):
     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         loc, scale, k = self._extract_params(params)
         cat = t.distributions.Categorical(k)
-        # norms = t.distributions.Normal(loc, scale)
         norms = self.stable_norms(loc, scale)
         return t.distributions.MixtureSameFamily(cat, norms).log_prob(value)
 
@@ -150,10 +163,18 @@ class MoG(SAN_Likelihood):
         loc, scale, k = params.reshape(B, self.K, 3).tensor_split(3, 2)
         loc, scale = loc.squeeze(-1), utils.squareplus_f(scale).squeeze(-1)
         cat = t.distributions.Categorical(F.softmax(k, -1).squeeze(-1))
-        # norms = t.distributions.Normal(loc, scale)
         norms = self.stable_norms(loc, scale)
-
         return t.distributions.MixtureSameFamily(cat, norms).sample()
+
+    def rsample(self, params: Tensor) -> Tensor:
+        B = params.size(0)
+        loc, scale, k = params.reshape(B, self.K, 3).tensor_split(3, 2)
+        K = F.softmax(k, -1).squeeze(-1)
+        cat = t.distributions.Categorical(K).sample()[:, None]
+
+        loc, scale = loc.squeeze(-1).gather(1, cat), scale.squeeze(-1).gather(1, cat)
+        norms = self.stable_norms(loc.squeeze(), scale.squeeze())
+        return norms.rsample()
 
 
 class MoST(SAN_Likelihood):
@@ -189,6 +210,9 @@ class MoST(SAN_Likelihood):
         cat = t.distributions.Categorical(F.softmax(k, -1).squeeze(-1))
         sts = t.distributions.StudentT(1., loc, scale)
         return t.distributions.MixtureSameFamily(cat, sts).sample()
+
+    def rsample(self, _: Tensor) -> Tensor:
+        raise NotImplementedError()
 
 
 # SAN Description -------------------------------------------------------------
@@ -359,11 +383,13 @@ class SAN(Model):
 
         return block, heads
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, rsample: bool = False) -> Tensor:
         """Runs the autoregressive model.
 
         Args:
             x: some conditioning information
+            rsample: whether to stop gradients (False) or not (True) in the
+                autoregressive sampling step.
 
         Returns:
             Tensor: a sample from the distribution; y_hat ~ p(y | x)
@@ -394,7 +420,10 @@ class SAN(Model):
 
             # draw single sample from p(y_d | y_<d, x)
             params = self.block_heads[d][1](H)
-            y_d = self.likelihood.sample(params).unsqueeze(1)
+            if rsample:
+                y_d = self.likelihood.rsample(params).unsqueeze(1)
+            else:
+                y_d = self.likelihood.sample(params).unsqueeze(1)
 
             ys = t.cat((ys, y_d), -1)
             self.last_params[:, d] = params
@@ -411,9 +440,14 @@ class SAN(Model):
             train_loader: DataLoader to load the training data.
             ip: The parameters to use for training, defined in
                 `config.py:InferenceParams`.
+        kwargs:
+            rsample (Bool): whether to stop gradients (False) or not (True) in the
+                autoregressive sampling step.
         """
         t.random.seed()
         self.train()
+
+        rsample = kwargs.get('rsample', False)
 
         start_e = 0
         # if not ip.retrain_model:
@@ -424,7 +458,7 @@ class SAN(Model):
 
                 # The following implicitly updates self.last_params, and
                 # returns y_hat (a sample from p(y | x))
-                _ = self.forward(x)
+                _ = self.forward(x, rsample)
                 assert (self.last_params is not None)
 
                 # Minimise the NLL of true ys using training parameters
@@ -450,15 +484,16 @@ class SAN(Model):
         self.eval()
 
     def sample(self, x_in: tensor_like, n_samples: int = 1000,
-               errs: Optional[tensor_like] = None,
+               rsample: bool = False, errs: Optional[tensor_like] = None,
                *args, **kwargs) -> Tensor:
         """A convenience method for drawing (conditional) samples from p(y | x)
         for a single conditioning point.
 
         Args:
             x: the conditioning data; x
-            errs: observation uncertainty in x (optional; only for 'real' observations)
             n_samples: the number of samples to draw
+            rsample: whether to use reparametrised sampling (default False)
+            errs: observation uncertainty in x (optional; only for 'real' observations)
             kwargs: any additional model-specific arguments
 
         Returns:
@@ -495,7 +530,9 @@ class SAN(Model):
 
         assert x.shape == (n * n_samples, d)
 
+        samples = self.forward(x, rsample)
+
         self.train()
 
-        return self.forward(x)
+        return samples
 
