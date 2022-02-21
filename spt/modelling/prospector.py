@@ -20,17 +20,19 @@ import os
 import logging
 import numpy as np
 import pandas as pd
-from prospect.models.sedmodel import SedModel
 
 from rich.console import Console
 from typing import Any, Callable, Optional, Union
 from prospect.fitting import fit_model, lnprobfn
 from prospect.io import write_results as writer
 from prospect.io import read_results as reader
+from prospect.models.sedmodel import SedModel
+from prospect.sources import SSPBasis
 
 import spt.visualisation as vis
 
 from spt.types import tensor_like, FittingMethod, ConcurrencyMethod, MCMCMethod
+from spt.modelling.builders import obs_dict_t
 from spt.config import ForwardModelParams, FittingParams, EMCEEParams,\
                        DynestyParams, InferenceParams
 
@@ -132,16 +134,16 @@ class Prospector:
         else:
             self.index = -1
 
-        self.obs = mp.build_obs_fn(mp.filters, observation)
+        self.obs: obs_dict_t = mp.build_obs_fn(mp.filters, observation)
         logging.info(f'Created obs dict with filters\n{[f.name for f in self.obs["filters"]]}')
         logging.debug(f'Created obs dict: {self.obs}')
 
-        self.model = mp.build_model_fn(mp.all_params, mp.ordered_params)
+        self.model: SedModel = mp.build_model_fn(mp.all_params, mp.ordered_params)
         logging.info(f'Created model:\n\tfree params {self.model.free_params},\n\tfixed: {self.model.fixed_params})')
         logging.debug(f'Created model: {self.model}')
 
         logging.info(f'Creating sps object...')
-        self.sps = mp.build_sps_fn(**mp.sps_kwargs)
+        self.sps: SSPBasis = mp.build_sps_fn(**mp.sps_kwargs)
         logging.info(f'Done.')
         logging.debug(f'Created sps: {self.sps}')
 

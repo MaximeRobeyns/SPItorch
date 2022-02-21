@@ -167,6 +167,9 @@ class MoG(SAN_Likelihood):
         return t.distributions.MixtureSameFamily(cat, norms).sample()
 
     def rsample(self, params: Tensor) -> Tensor:
+        """Since this is a mixture distribution, we return len(params) samples
+        from _each_ of the mixture components,
+        """
         B = params.size(0)
         loc, scale, k = params.reshape(B, self.K, 3).tensor_split(3, 2)
         K = F.softmax(k, -1).squeeze(-1)
@@ -259,9 +262,25 @@ class SANParams(ModelParams):
         pass
 
     @property
+    @abstractmethod
+    def train_rsample(self) -> bool:
+        """Whether to stop gradients at the autoregressive step"""
+        return False
+
+    @property
     def opt_lr(self) -> float:
         """Optimiser learning rate"""
         return 1e-4
+
+    @property
+    def limits(self) -> Optional[Tensor]:
+        """Allows the output samples to be constrained to lie within the
+        specified range.
+
+        This method returns a (self.data_dim x 2)-dimensional tensor, with the
+        (normalised) min and max values of each dimension of the output.
+        """
+        return None
 
 
 # Main SAN Class ==============================================================
@@ -288,6 +307,8 @@ class SAN(Model):
         self.likelihood: SAN_Likelihood = mp.likelihood(**kwargs)
 
         self.batch_norm = mp.batch_norm
+        self.train_rsample = mp.train_rsample
+        self.limits = mp.limits  # output prediction limits
 
         # Initialise the network
         self.network_blocks = nn.ModuleList()
@@ -333,7 +354,8 @@ class SAN(Model):
             name = (f'l{self.likelihood.name}_cd{self.cond_dim}'
                     f'_dd{self.data_dim}_ms{ms}_'
                     f'lp{self.likelihood.n_params()}_bn{self.batch_norm}_'
-                    f'lr{self.lr}_e{self.epochs}_bs{self.batch_size}')
+                    f'lr{self.lr}_e{self.epochs}_bs{self.batch_size}_'
+                    f'trsample{self.train_rsample}_')
             self.savepath_cached = f'{base}{name}{ident}.pt'
 
         return self.savepath_cached
@@ -425,6 +447,11 @@ class SAN(Model):
             else:
                 y_d = self.likelihood.sample(params).unsqueeze(1)
 
+            if self.limits is not None:
+                y_d =
+                # min: self.lims[d][0]
+                # max: self.lims[d][1]
+
             ys = t.cat((ys, y_d), -1)
             self.last_params[:, d] = params
 
@@ -447,8 +474,6 @@ class SAN(Model):
         t.random.seed()
         self.train()
 
-        rsample = kwargs.get('rsample', False)
-
         start_e = 0
         # if not ip.retrain_model:
         start_e = self.attempt_checkpoint_recovery(ip)
@@ -458,7 +483,7 @@ class SAN(Model):
 
                 # The following implicitly updates self.last_params, and
                 # returns y_hat (a sample from p(y | x))
-                _ = self.forward(x, rsample)
+                _ = self.forward(x, self.train_rsample)
                 assert (self.last_params is not None)
 
                 # Minimise the NLL of true ys using training parameters
@@ -500,11 +525,9 @@ class SAN(Model):
             Tensor: a tensor of shape [n_samples, data_dim]
         """
 
-        self.eval()
-
-        # if self.training:
-        #     logging.warning('Model is still in training mode during sampling! '
-        #                     'This is likely to give you unexpected results.')
+        if self.training:
+            logging.warning('Model is still in training mode during sampling! '
+                            'This is likely to give you unexpected results.')
 
         if isinstance(x_in, np.ndarray):
             x_in = t.from_numpy(x_in)
@@ -532,7 +555,4 @@ class SAN(Model):
 
         samples = self.forward(x, rsample)
 
-        self.train()
-
         return samples
-

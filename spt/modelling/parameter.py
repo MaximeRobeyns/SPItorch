@@ -155,8 +155,7 @@ class ParamConfig:
             else:
                 tmp_params |= TemplateLibrary[t]
 
-        # Such that we can override parameters with the manually-defined
-        # parameters:
+        # Allows us to override parameters with the manually-defined parameters:
         for p in self.model_params:
             tmp_params |= p.to_dict()
 
@@ -184,25 +183,26 @@ class ParamConfig:
         fp.sort()
         return fp
 
-    def free_param_lims(self, log: bool = True) -> list[tuple[float, float]]:
+    def free_param_lims(self, normalise: bool = True) -> list[tuple[float, float]]:
         """Get the (prior) limits on the free parameters
 
         Args:
-            log: Whether to return the log-range for log parameters.
+            TODO: get rid of this parameter
+            normalise: Whether to return the normalised parameters.
 
         Returns:
             list[tuple[float, float]]: list of tuples in standard parameter
                 order, with min_max values.
 
         Raises:
-            RuntimeError: [TODO:description]
+            RuntimeError: upon missing prior parameters.
         """
         lims: list[tuple[float, float]] = []
         fp = self.free_params
         ofp = self.ordered_free_params
         for p in ofp:
             par = fp[p]
-            if log and par['_is_log']:
+            if par['_is_log']:
                 if '_range_min' in par and '_range_max' in par:
                     rmin, rmax = par['_range_min'], par['_range_max']
                     lims.append((float(rmin), float(rmax))) # type: ignore
@@ -213,9 +213,9 @@ class ParamConfig:
                'maxi' not in prior.params.keys():
                 logging.error('Free parameters must have a speciried range')
                 raise RuntimeError((
-                    f'Could not find "mini" and "maxi" attributes of free '
-                    'parameter prior {prior}'))
-            if log and par['_is_log']:
+                    'Could not find "mini" and "maxi" attributes of free '
+                    f'parameter prior {prior}'))
+            if par['_is_log']:
                 lims.append((np.log10(prior.params['mini']), np.log10(prior.params['maxi'])))
             else:
                 lims.append((prior.params['mini'], prior.params['maxi']))

@@ -41,6 +41,7 @@
 % \usepackage{tkz-euclide} (causes some sort of compilation error...)
 \usepackage{url}
 
+\bibliographystyle{abbrvnat}
 
 \usepackage{xcolor}
 \usepackage[normalem]{ulem}
@@ -53,7 +54,6 @@
 \SetKwProg{Fn}{}{}{end}
 \SetKwComment{Comment}{$\triangleright$\ }{}
 
-\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
 \definecolor{light-gray}{gray}{0.95}
 
 \newcommand\tab[1][1cm]{\hspace*{#1}}
@@ -69,6 +69,7 @@
 
 \geometry{
     a4paper,
+    top=40pt,
     bottom=90pt
 }
 
@@ -79,49 +80,96 @@
 
 \begin{document}
 
-\maketitle
+% \maketitle
 
 \begin{algorithm}[h]
-  \KwIn{Forward model $f$, prior over physical parameters $\P(\rvz)$.}
-  \KwOut{Approximate posterior $\Q_{\phi}(\rvz \vert \rvx)$. Also a likelihood
-  $\P_{\rmW}(\rvx \vert \rvz)$.}
+  \KwIn{Forward model $f$, prior over physical parameters $\P(\rvtheta)$.}
+  \KwOut{Approximate posterior $\Q_{\phi}(\rvtheta \vert \rvx)$. Also a likelihood
+  $\P_{\rmW}(\rvx \vert \rvtheta)$.}
   \SetKw{KwOr}{or}
   \SetKw{goto}{goto}
   \Repeat {$\text{Until reconstructions match the data}$}{
-      Simulate $\{(\rvz_i, \rvx_i)\}^N_{i=1}$ pairs, using $\rvx_i \gets f(\rvz_i)$,
-      $\rvz_i \sim \P(\rvz_i)$.\;
-      Train $\Q_\vphi(\rvz \vert \rvx)$ via \acr{ML}: $$\argmax_\vphi
-      \sum^N_{i=1}\log \Q_\vphi(\rvz_i \vert \rvx_i)$$ \;
+      Simulate $\{(\rvtheta_i, \rvx_i)\}^N_{i=1}$ pairs, using $\rvx_i \gets f(\rvtheta_i)$,
+      $\rvtheta_i \sim \P(\rvtheta_i)$.\;
+      Train $\Q_\vphi(\rvtheta \vert \rvx)$ via \acr{ML}: $$\argmax_\vphi
+      \sum^N_{i=1}\log \Q_\vphi(\rvtheta_i \vert \rvx_i)$$ \;
       Train a neural likelihood (or likelihood-ratio?) $$\argmax_\rmW\ \sum^N_{i=1} \log \P_\rvw(\rvx_i \vert
-      \rvz_i)$$\;
+      \rvtheta_i)$$\;
       Minimise a divergence (e.g. $\KL$):
       $$
-      \argmin_\vphi \KL\big[ \Q_{\phi} (\rvz \vert \rvx_{\text{true}}) \Vert
-          \P(\rvz \vert \rvx_{\text{true}}) \big]
+      \argmin_\vphi \KL\big[ \Q_{\phi} (\rvtheta \vert \rvx_{\text{true}}) \Vert
+          \P(\rvtheta \vert \rvx_{\text{true}}) \big]
       $$
-      where $\P(\rvz \vert \rvx_{\text{true}}) \propto \P_\rmW(\rvx_{\text{true}}
-      \vert \rvz)\P(\rvz)$.\;
+      where $\P(\rvtheta \vert \rvx_{\text{true}}) \propto \P_\rmW(\rvx_{\text{true}}
+      \vert \rvtheta)\P(\rvtheta)$.\;
   }
   \caption{\label{algo:train}Training Procedure.}
 \end{algorithm}
 
-The \acr{ELBO} has the following form:
+The objective on line 5 has the following form:
 \begin{align}
-    \mathcal{L}(\phi) &= \E_{\Q_{\phi}(\rvz \vert\rvx_{\text{true}})}
+    \mathcal{L}(\phi) &= \E_{\Q_{\phi}(\rvtheta \vert\rvx_{\text{true}})}
         \big[
-            \log \P(\rvz, \rvx_{\text{true}}) - \log \Q_\phi(\rvz \vert
+            \log \P(\rvtheta, \rvx_{\text{true}}) - \log \Q_\phi(\rvtheta \vert
             \rvx_{\text{true}})
-        \big] \\
-                      &= \E_{\Q_{\phi}(\rvz \vert\rvx_{\text{true}})} \left[\log
-                      \P_{\rmW}(\rvx_{\text{true}} \vert \rvz) - \log \frac{\Q_\phi(\rvz \vert
-            \rvx_{\text{true}})}{\P(\rvz)}\right]
+        \big]
+        \\
+                      &= \E_{\Q_{\phi}(\rvtheta \vert\rvx_{\text{true}})} \big[
+                      \log\P_{\rmW}(\rvx_{\text{true}} \vert \rvtheta) \big] -
+                      D_{\text{KL}}\left[
+                          \Q_\phi(\rvtheta \vert \rvx_{\text{true}}) \Vert
+                      \P(\rvtheta) \right]
 \end{align}
-We optimise an \acr{MC} approximation of this objective, using $K$ terms
-\[
-    \gL(\phi) \approx \sum^K_{i=1}\log \P_\rmW(\rvx_{\text{true}:j}\vert \rvz_i) - \log
-    \Q_\phi(\rvz_i \vert \rvx_{\text{true}:j}) + \log \P(\rvz_i),
-\]
-where $\rvz_i \sim \Q_\phi(\rvz_i \vert \rvx_{\text{true}:j})$.
+% We optimise an \acr{MC} approximation of the expectation above, using $M$ terms
+% \begin{equation}
+%     \gL(\phi) \approx \frac{1}{M}\sum^M_{m=1}\log \P_\rmW(\rvx_{\text{true},j}\vert \hat{\rvtheta}_m) - \log
+%     \Q_\phi(\hat{\rvtheta}_m \vert \rvx_{\text{true},j}) + \log \P(\hat{\rvtheta}_m),
+% \end{equation}
+% where $\hat{\rvtheta}_m \sim \Q_\phi(\rvtheta \vert \rvx_{\text{true},j})$, and
+% $\rvx_{\text{true},j}$ is the $j$th observation from the catalogue of real
+% observations.
 
+We must be careful however, since each dimension of $Q_\phi(\rvtheta \vert \rvx)$
+(a Sequential Autoregressive Network) is a mixture distribution. In order to
+compute $\nabla_\phi \gL(\phi)$, we must sample from the distribution in such a
+way that it can be reparametrised; by finding the expectation under each component
+individually, and then weighting these terms by the mixture weights. That is,
+for a mixture distribution $Q_\phi(\rvtheta \vert \rvx) =
+\sum^K_{k=1}\varphi^k_\phi(\rvx)Q_\phi^k(\rvtheta \vert \rvx)$, we can pull the mixture
+weights out of the expectation:
+\begin{align}
+    \E_{Q_\phi(\rvtheta \vert \rvx)}f(\rvtheta) &= \int_\rvtheta
+    f(\rvtheta)\left(\sum^K_{k=1}\varphi^k_\phi(\rvx)Q_\phi^k(\rvtheta \vert \rvx)\right)
+    d\rvtheta \\
+                                                &= \sum^K_{i=1}\varphi^k_\phi(\rvx)
+                                                \int_\rvtheta f(\rvtheta)
+                                                Q^k_\phi(\rvtheta \vert
+                                                \rvx)d\rvtheta \\
+                                                &= \sum^K_{k=1}\varphi^k_\phi(\rvx)
+                                                \E_{Q^k_\phi(\rvtheta \vert
+                                                \rvx)}\big[f(\rvtheta)\big].
+\end{align}
+However, by simply substituting $f(\rvtheta) = \log \P(\rvtheta, \rvx) -
+Q_\phi(\rvtheta \vert \rvx)$ and optimising $\gL(\phi)$, the mode-seeking
+behaviour of the \acr{KL}-divergence will down-weight many components in the
+mixture. \cite{roederStickingLandingSimple2017} propose to use importance
+sampling (an \acr{IWAE}), where we first draw $T$ iid. samples from the
+posterior. Combining the approach above leads to a ``\emph{stratified}
+\acr{IWAE}'', % \citep{morningstarAutomaticDifferentiationVariational2021},
+which is computed as follows:
+\begin{equation}
+    \gL^T(\phi) = \E_{\{\rvtheta_{kt}\sim Q^k_\phi(\rvtheta \vert
+        \rvx_{\text{true},j})\}^{K, T}_{k=1, t=1}}\left[
+        \log
+        \frac{1}{T}\sum^T_{t=1}\sum^K_{k=1}\varphi^k_{\phi}(\rvx_{\text{true},j})\frac{\P_{\rmW}(\rvtheta_{kt},
+        \rvx_{\text{true},j})}{Q_\phi(\rvtheta_{kt} \vert \rvx_{\text{true},j})}
+    \right],
+\end{equation}
+where the notation $\{\rvtheta_{kt}\sim Q^k_\phi(\rvtheta \vert \rvx)\}^{K,
+T}_{k=1, t=1}$ means, draw $T$ samples from each of the $K$ mixture components,
+and $\rvx_{\text{true}, j}$ is the $j$th observation from the catalogue of real
+observations.
+
+\bibliography{library}
 
 \end{document}

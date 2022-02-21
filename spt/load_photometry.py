@@ -277,8 +277,7 @@ def load_dummy_observation(filter_sel: list[Filter]
 # Transformations =============================================================
 
 
-def denormalise_theta(norm_theta: Union[np.ndarray, Tensor],
-        limits: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
+def denormalise_theta(norm_theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
     """Rescale norm_theta lying within [0, 1] range; not altering the
     distribution of points.
     """
@@ -320,7 +319,7 @@ def normalise_theta(theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
 
 
 def get_norm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
-    lims = np.array(fp.free_param_lims(log=True))
+    lims = np.array(fp.free_param_lims())
     islog = np.array(fp.is_log())
 
     def f(y: np.ndarray) -> np.ndarray:
@@ -331,7 +330,7 @@ def get_norm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]
     return f
 
 def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
-    lims = np.array(fp.free_param_lims(log=True))
+    lims = np.array(fp.free_param_lims())
     islog = np.array(fp.is_log())
 
     def f(yy: np.ndarray) -> np.ndarray:
@@ -340,12 +339,14 @@ def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarra
 
     return f
 
-def get_denorm_theta_t(fp: ForwardModelParams) -> Callable[[Tensor], Tensor]:
-    lims = t.tensor(fp.free_param_lims(log=True))
-    islog = t.tensor(fp.is_log())
+def get_denorm_theta_t(fp: ForwardModelParams, dtype=None, device=None
+        ) -> Callable[[Tensor], Tensor]:
+    lims = t.tensor(fp.free_param_lims(), dtype=dtype, device=device)
+    islog = t.tensor(fp.is_log(), dtype=t.bool, device=device)
 
     def f(yy: Tensor) -> Tensor:
-        y = denormalise_theta(yy, lims)
+        assert yy.shape[1] == lims.shape[0]
+        y = lims[:, 0] + (lims[:, 1] - lims[:, 0]) * yy
         return t.where(islog, 10**t.clip(y, -10, 20), y)  # type: ignore
 
     return f

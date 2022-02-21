@@ -147,7 +147,7 @@ def main(sp: SamplingParams = SamplingParams()):
             (idx, status, n) = status_q.get()
             if status == Status.LOADED:
                 progress.reset(tasks[idx], completed=n, start=True,
-                               description=f'[green]Running  {idx:02}')
+                                description=f'[green]Running  {idx:02}')
             elif status == Status.SAMPLED:
                 progress.update(tasks[idx], completed=n, start=True,
                                 description=f'[green]Running  {idx:02}')

@@ -32,7 +32,7 @@ import spt.modelling
 import spt.inference as inference
 
 from spt.utils import ConfigClass
-from spt.types import MCMCMethod, FittingMethod, ConcurrencyMethod
+from spt.types import MCMCMethod, FittingMethod, ConcurrencyMethod, Tensor
 from spt.filters import Filter, FilterLibrary, FilterCheck
 from spt.inference import san
 from spt.modelling import Parameter, ParamConfig
@@ -54,9 +54,12 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 
     # Manually defined SedModel parameters:
     # - parameters below with model_this=True are modelled (in Prospector & ML)
-    # - the 'name' attribute must be some FSPS name
+    # - the 'name' attribute must be some FSPS name:
+    #       see prospect.models.templates.TemplateLibrary
     # - use the 'units' to describe and notate the param (you can use LaTeX!)
     # - the order matters for ML models: if you reorder them, retrain the model
+    #
+    # Uniform: log_prob is -inf outside support of the priors.
     model_params: list[Parameter] = [
         Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
         Parameter('mass', 6, 8, 10, priors.LogUniform, units='log_mass',
@@ -203,8 +206,15 @@ class SANParams(san.SANParams):
     # Whether to use batch norm
     batch_norm: bool = True
 
+    # Whether to use reparametrised sampling during training
+    train_rsample: bool = False
+
     # Optimiser (Adam) learning rate
     opt_lr: float = 1e-4
+
+    # The (normalised) parameter limits.
+    # limits: Tensor = ForwardModelParams().free_param_lims(True)
+    limits: Tensor = t.tensor([0.,1.]).repeat(len(ForwardModelParams().free_params), 1)
 
 
 # =========================== Logging Parameters ==============================
