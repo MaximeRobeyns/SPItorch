@@ -219,11 +219,6 @@ def sim_observation(filters: list[Filter], phot: np.ndarray,
     return ret
 
 
-# TODO port get_simulated_observation
-# TODO port observationDataset
-# TODO port load_real_data
-
-
 def filter_has_valid_data(f: Filter, observation: pd.Series) -> bool:
     """Ensures that observation data series has maggie cols"""
     filter_value = observation[f.maggie_col]
@@ -277,89 +272,75 @@ def load_dummy_observation(filter_sel: list[Filter]
 # Transformations =============================================================
 
 
-def denormalise_theta(norm_theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
-    """Rescale norm_theta lying within [0, 1] range; not altering the
-    distribution of points.
-    """
-    assert norm_theta.shape[1] == limits.shape[0]
-    return limits[:,0] + (limits[:,1] - limits[:,0]) * norm_theta # type: ignore
-
-
-def denormalise_unif_theta(norm_theta: np.ndarray, limits: np.ndarray,
-                           log_mask: list[bool]) -> np.ndarray:
-    """Denormalise photometry (lying in the [0-1] range) to lie within the min
-    and max limits (either explicitly set in ForwardModelParams.model_params,
-    or inerred from a prior; perhaps in a template): additionally accounting
-    for logarithmic parameters.
-
-    Args:
-        norm_theta: matrix of [0, 1] normalised theta values: 1 theta sample
-            per row
-        limits: 2D array of min-max limits, given in the standard theta order.
-        log_mask: a boolean list with True where we have a logarithmic
-            parameter.
-
-    Returns:
-        denormalised theta values.
-    """
-    # assert columns of theta matrix == number of limits
-    assert norm_theta.shape[1] == limits.shape[0]
-    limits[log_mask] = np.log10(limits[log_mask, :]) # type: ignore
-    dtheta = limits[:,0] + (limits[:,1] - limits[:,0]) * norm_theta # type: ignore
-
-    return np.where(np.array(log_mask), 10**np.clip(dtheta, -10, 20), dtheta)
-
-
-def normalise_theta(theta: np.ndarray, limits: np.ndarray) -> np.ndarray:
-    """Rescale theta values to lie within [0, 1] range; not altering the
-    distribution of points within this range."""
-    assert theta.shape[1] == limits.shape[0]
-    offset = theta - limits[:, 0] # type: ignore
-    return offset / (limits[:, 1] - limits[:, 0]) # type: ignore
-
-
 def get_norm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
+    """Returns a callable which will accept a NumPy array of denormalised
+    theta values, and return a normalised version.
+    """
     lims = np.array(fp.free_param_lims())
-    islog = np.array(fp.is_log())
+    islog = np.array(fp.is_log(), dtype=np.bool8)
+    # lims = np.where(islog, np.log(lims), lims)
 
-    def f(y: np.ndarray) -> np.ndarray:
+    def f(dt: np.ndarray) -> np.ndarray:
+        assert dt.shape[1] == limits.shape[0]
         warnings.simplefilter("ignore")
-        y = np.where(islog, np.log10(y), y)
-        return normalise_theta(y, lims)
+        dt = np.where(islog, np.log(dt), dt)
+        offset = dt - lims[:, 0]
+        return offset / (lims[:, 1] - lims[:, 0])
 
     return f
 
-def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
-    lims = np.array(fp.free_param_lims())
-    islog = np.array(fp.is_log())
 
-    def f(yy: np.ndarray) -> np.ndarray:
-        y = denormalise_theta(yy, lims)
-        return np.where(islog, 10**np.clip(y, -10, 20), y)
+def get_norm_theta_t(fp: ForwardModelParams, dtype=None, device=None
+                     ) -> Callable[[Tensor], Tensor]:
+    """PyTorch variant of get_norm_theta"""
+    lims = t.tensor(fp.free_param_lims(), dtype=dtype, device=device)
+    islog = t.tensor(fp.log_scale(), dtype=t.bool, device=device)
+    # lims = t.where(islog, t.log(lims), lims)  # will be nans from non-log lims
+    # assert not lims.isnan().any()
+
+    def f(denorm_theta: Tensor) -> Tensor:
+        assert denorm_theta.shape[1] == lims.shape[0]
+        denorm_theta = t.where(islog, t.log(denorm_theta), denorm_theta)
+        offset = denorm_theta - lims[:, 0]
+        return offset / (lims[:, 1] - lims[:, 0])
+
+    return f
+
+
+def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]:
+    """Returns a callable which accepts a NumPy array of normalised theta
+    values, and returns their denormalised values.
+    """
+    lims = np.array(fp.free_param_lims())
+    islog = np.array(fp.log_scale(), dtype=np.bool8)
+    # lims = np.where(islog, np.log(lims), lims)
+
+    def f(norm_theta: np.ndarray) -> np.ndarray:
+        assert norm_theta.shape[1] == lims.shape[0]
+        theta = (lims[:, 1] - lims[:, 0]) * norm_theta + lims[:, 0]
+        return np.where(islog, np.exp(theta), theta)
 
     return f
 
 def get_denorm_theta_t(fp: ForwardModelParams, dtype=None, device=None
-        ) -> Callable[[Tensor], Tensor]:
-    lims = t.tensor(fp.free_param_lims(), dtype=dtype, device=device)
-    islog = t.tensor(fp.is_log(), dtype=t.bool, device=device)
+                       ) -> Callable[[Tensor], Tensor]:
+    """PyTorch variant of get_denorm_theta.
 
-    def f(yy: Tensor) -> Tensor:
-        assert yy.shape[1] == lims.shape[0]
-        y = lims[:, 0] + (lims[:, 1] - lims[:, 0]) * yy
-        return t.where(islog, 10**t.clip(y, -10, 20), y)  # type: ignore
+    Returns a callable, accepting a tensor of normalised parameters, and returns
+    their denormalised values.
+    """
+    lims = t.tensor(fp.free_param_lims(), dtype=dtype, device=device)
+    islog = t.tensor(fp.log_scale(), dtype=t.bool, device=device)
+    # lims = t.where(islog, t.log(lims), lims)  # will be nans from non-log lims
+    # assert not lims.isnan().any()
+
+    def f(norm_theta: Tensor) -> Tensor:
+        assert norm_theta.shape[1] == lims.shape[0]
+        theta = (lims[:, 1] - lims[:, 0]) * norm_theta + lims[:, 0]
+        # previously t.exp(t.clip(theta, -10, 20), theta)
+        return t.where(islog, t.exp(theta), theta)
 
     return f
-
-
-# We would never use this type of function...
-# def normalise_unif_theta(theta: np.ndarray, limits: np.ndarray,
-#                          log_mask: list[bool]) -> np.ndarray:
-#     assert theta.shape[1] == limits.shape[0]
-#     limits[log_mask] = np.log10(limits[log_mask, :])
-#     theta[log_mask] = np.log10()
-#     offset = theta - limits[:, 0]
-#     return offset / limits[:, 1] - limits[:, 0]
 
 
 # HDF5 file IO ----------------------------------------------------------------

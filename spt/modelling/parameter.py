@@ -16,18 +16,18 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Classes to describe modelling parameters"""
 
+import math
+import logging
 import torch as t
 import numpy as np
-import logging
 import prospect.models.priors as ppr
 import torch.distributions as tdist
 
 from abc import abstractmethod
+from typing import Any, Optional, Type, Union
 from torch.distributions import Distribution
 from prospect.models.priors import Prior, Uniform
 from prospect.models.templates import TemplateLibrary
-
-from typing import Any, Optional, Type, Union
 
 from spt.types import Tensor
 
@@ -44,15 +44,12 @@ class Parameter:
     def __init__(self, name: str, range_min: float, init: float,
                  range_max: float, prior: Type[Prior] = Uniform,
                  prior_kwargs: dict[str, Any] = {},
-                 model_this: bool = True,
-                 units: str = '', dim: int = 1,
-                 disp_floor: Optional[float] = None):
+                 model_this: bool = True, units: str = '',
+                 dim: int = 1, disp_floor: Optional[float] = None):
         """Describes a Prospector parameter.
 
-        NOTE: if 'units' begins with 'log' e.g. log_mass, then the
-        range_min, init and range_max and disp_floor parameters are
-        automatically exponentiated (base 10). The prior_kwargs are *not*
-        modified however: it is up to you to transform them.
+        This should be defined for direct use in the forward model (no
+        normalisations, no other transformations).
 
         A default Uniform prior is applied. For all priors, the `mini` and
         `maxi` parameters are automatically set from the (range_min, range_max)
@@ -73,33 +70,28 @@ class Parameter:
                 prior of choice.
             model_this: whether or not to model this parameter with ML / MCMC
                 (else it is treated as a 'fixed' parameter)
-            units: Description of units (you can use $<expr>$ delimited LaTeX
-                maths in here.)
+            units: Human-readable description of units (mostly for plotting; you
+                can use $<expr>$-delimited LaTeX expressions in here.)
             dim: The number of dimensions (defaults to 1; scalar)
             disp_floor: Sets the initial dispersion to use when using clouds of
                 EMCEE walkers (only for MCMC sampling).
         """
-        self.log = units.startswith('log')
-
         self.N = dim
         self.name = name
         self.units = units
-        self.init = 10**init if self.log else init
+        self.init = init
         self.isfree = model_this
-        if disp_floor is not None:
-            self.disp_floor = 10**disp_floor if self.log else disp_floor
-        else:
-            self.disp_floor = None
-
+        self.disp_floor = disp_floor
         self._range_min = range_min
         self._range_max = range_max
 
-        self.min = 10**range_min if self.log else range_min
-        self.max = 10**range_max if self.log else range_max
 
         # This is poor form since not all priors accept mini and maxi; however
         # the prospect.models.priors don't check for redundant kwargs...
-        self.prior = prior(mini=self.min, maxi=self.max, **prior_kwargs)
+        #
+        # TODO: for LogUniform distribution, should we additionally add
+        # loc = (range_max-range_min)/2, scale = (range_min-range_max)?
+        self.prior = prior(mini=range_min, maxi=range_max, **prior_kwargs)
 
     def to_dict(self) -> dict[str, pdict_t]:
         values = {
@@ -108,7 +100,6 @@ class Parameter:
             'prior': self.prior,
             'isfree': self.isfree,
             'N': self.N,
-            '_is_log': self.log,
             '_range_min': self._range_min,
             '_range_max': self._range_max,
         }
@@ -143,7 +134,10 @@ class ParamConfig:
         parameters.
 
         Returns:
-            pdict_t: The combined model parameters.
+            pdict_t: A dictionary of combined model parameters ready for use in
+                Prospector. The prior distributions are in their denormalised
+                range; that is, they follow a log scale if is_log is true,
+
         """
 
         tmp_params: dict[str, pdict_t] = {}
@@ -158,6 +152,15 @@ class ParamConfig:
         # Allows us to override parameters with the manually-defined parameters:
         for p in self.model_params:
             tmp_params |= p.to_dict()
+
+        # Identify parameters defined on a logarithmic scale for normalisation.
+        for p in tmp_params.keys():
+            try:
+                tpp = tmp_params[p]['prior']
+                tmp_params[p]['_log_scale'] = isinstance(tpp, (ppr.LogNormal,
+                                                               ppr.LogUniform))
+            except KeyError:  # not all parameters have a prior.
+                continue
 
         return tmp_params
 
@@ -178,17 +181,21 @@ class ParamConfig:
 
     @property
     def ordered_free_params(self) -> list[str]:
-        # fp = [p[0] for p in self.all_params.items() if p[1]['isfree']].sort()
         fp = list(self.free_params.keys())
         fp.sort()
         return fp
 
-    def free_param_lims(self, normalise: bool = True) -> list[tuple[float, float]]:
+    def free_param_lims(self, log_scaled: bool = True,
+                        normalised: bool = False,
+                        ) -> list[tuple[float, float]]:
         """Get the (prior) limits on the free parameters
 
         Args:
-            TODO: get rid of this parameter
-            normalise: Whether to return the normalised parameters.
+            log_scaled: whether to apply (natural) logarithm to log-scaled
+                parameters.
+            normalise: Whether to return the limits for the normalised
+                parameters. This is not redundant, since we don't always do
+                [0, 1] normalisation.
 
         Returns:
             list[tuple[float, float]]: list of tuples in standard parameter
@@ -200,48 +207,37 @@ class ParamConfig:
         lims: list[tuple[float, float]] = []
         fp = self.free_params
         ofp = self.ordered_free_params
-        for p in ofp:
-            par = fp[p]
-            if par['_is_log']:
-                if '_range_min' in par and '_range_max' in par:
-                    rmin, rmax = par['_range_min'], par['_range_max']
-                    lims.append((float(rmin), float(rmax))) # type: ignore
-                    continue
-            prior = par['prior']
+
+        for k in ofp:
+            tmp = fp[k]
+
+            prior = tmp['prior']
             assert isinstance(prior, Prior)
-            if 'mini' not in prior.params.keys() or \
-               'maxi' not in prior.params.keys():
-                logging.error('Free parameters must have a speciried range')
-                raise RuntimeError((
-                    'Could not find "mini" and "maxi" attributes of free '
-                    f'parameter prior {prior}'))
-            if par['_is_log']:
-                lims.append((np.log10(prior.params['mini']), np.log10(prior.params['maxi'])))
-            else:
-                lims.append((prior.params['mini'], prior.params['maxi']))
+
+            tmp_lim = prior.range
+
+            if log_scaled and tmp['_log_scale']: # uses natural logarithm
+                tmp_lim = (math.log(float(tmp_lim[0])), math.log(float(tmp_lim[1])))
+
+            if normalised:
+                tmp_lim = (0., 1.)
+
+            lims.append(tmp_lim)
+
         return lims
 
-    def is_log(self) -> list[bool]:
-        # Note: we do not try to 'auto detect' whether a template parameter is
-        # logarithmic e.g. from its name. Only manually defined parameters will
-        # be considered.
-
-        log = []
-        fp, ofp = self.free_params, self.ordered_free_params
-        for p in ofp:
-            if '_is_log' in fp[p]:
-                log.append(fp[p]['_is_log'])
-            # Otherwise, this must be a template parameter. Skip it.
-        return log
+    def log_scale(self) -> list[bool]:
+        fp, ks = self.free_params, self.ordered_free_params
+        return [isinstance(fp[k]['prior'], (ppr.LogNormal, ppr.LogUniform))
+                for k in ks]
 
     def to_torch_priors(self, dtype: t.dtype = None, device: t.device = None
             ) -> list[Distribution]:
         """Returns the free parameter's priors as pytorch distributions."""
         priors: list[Distribution] = []
-        ofp = self.ordered_free_params
-        frp = self.free_params
+        fp, ofp = self.free_params, self.ordered_free_params
         for p in ofp:
-            P = frp[p]['prior']
+            P = fp[p]['prior']
             assert isinstance(P, Prior)
             priors.append(prospector_to_torch_dist(P, dtype, device))
         return priors

@@ -21,6 +21,7 @@ targets in the Makefile.
 """
 
 import os
+import math
 import logging
 import torch as t
 import prospect.models.priors as priors
@@ -49,25 +50,30 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 
     # Model parameters --------------------------------------------------------
 
-    # List of templates
+    # Begin with a library of parameters.
     model_param_templates: list[str] = ['parametric_sfh']
 
-    # Manually defined SedModel parameters:
-    # - parameters below with model_this=True are modelled (in Prospector & ML)
-    # - the 'name' attribute must be some FSPS name:
-    #       see prospect.models.templates.TemplateLibrary
-    # - use the 'units' to describe and notate the param (you can use LaTeX!)
-    # - the order matters for ML models: if you reorder them, retrain the model
+    # Manually override some properties of the SedModel parameters from the
+    # template above. You can also leave out the template entirely and define
+    # all the parameters below.
     #
-    # Uniform: log_prob is -inf outside support of the priors.
+    # Note:
+    # - the 'name' attribute must be some FSPS name.
+    # - 'units' describes notation (you can use LaTeX)
+    # - the order matters for ML models: if you reorder them, retrain the model
+    # - set 'model_this=False' to define a fixed parameter
+    # - range_min and range_max delimit the allowable range, and serve as bounds
+    #       for the Uniform distribution (the default if the prior distribution
+    #       is omitted)
     model_params: list[Parameter] = [
         Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
-        Parameter('mass', 6, 8, 10, priors.LogUniform, units='log_mass',
-                  disp_floor=6.),
+        Parameter('mass', 10**6, 10**8, 10**10, priors.LogUniform,
+                  units='$log(M/M_\\odot)$', disp_floor=10**6.),
         Parameter('logzsol', -2, -0.5, 0.19, units='$\\log (Z/Z_\\odot)$'),
         Parameter('dust2', 0., 0.05, 2., units='optical depth at 5500AA'),
         Parameter('tage', 0.001, 13., 13.8, units='Age, Gyr', disp_floor=1.),
-        Parameter('tau', 0.1, 1, 100, priors.LogUniform, units='Gyr^{-1}'),
+        # Parameter('tau', 0.1, 1, 100, priors.LogUniform, units='Gyr^{-1}'),
+        Parameter('tau', 10**(-1), 10**0, 10**2, priors.LogUniform, units='Gyr^{-1}'),
     ]
 
     build_model_fn: build_model_fn_t = spt.modelling.build_model

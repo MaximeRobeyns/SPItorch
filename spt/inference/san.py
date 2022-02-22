@@ -310,6 +310,10 @@ class SAN(Model):
         self.train_rsample = mp.train_rsample
         self.limits = mp.limits  # output prediction limits
 
+        if self.limits is not None:
+            self.offsets = self.limits[:,0]
+            self.lim_scale = self.limits[:,1] - self.limits[:,0]
+
         # Initialise the network
         self.network_blocks = nn.ModuleList()
         self.block_heads = nn.ModuleList()
@@ -356,6 +360,7 @@ class SAN(Model):
                     f'lp{self.likelihood.n_params()}_bn{self.batch_norm}_'
                     f'lr{self.lr}_e{self.epochs}_bs{self.batch_size}_'
                     f'trsample{self.train_rsample}_')
+            name += 'lim__' if self.limits is not None else ''
             self.savepath_cached = f'{base}{name}{ident}.pt'
 
         return self.savepath_cached
@@ -448,9 +453,7 @@ class SAN(Model):
                 y_d = self.likelihood.sample(params).unsqueeze(1)
 
             if self.limits is not None:
-                y_d =
-                # min: self.lims[d][0]
-                # max: self.lims[d][1]
+                y_d = self.offsets[d] + t.sigmoid(y_d) * self.lim_scale
 
             ys = t.cat((ys, y_d), -1)
             self.last_params[:, d] = params
