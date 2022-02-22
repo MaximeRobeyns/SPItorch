@@ -219,8 +219,8 @@ class SANParams(san.SANParams):
     opt_lr: float = 1e-4
 
     # The (normalised) parameter limits.
-    # limits: Tensor = ForwardModelParams().free_param_lims(True)
-    limits: Tensor = t.tensor([0.,1.]).repeat(len(ForwardModelParams().free_params), 1)
+    limits: Tensor = ForwardModelParams().free_param_lims(normalised=True)
+    # limits: Tensor = t.tensor([0.,1.]).repeat(len(ForwardModelParams().free_params), 1)
 
 
 # =========================== Logging Parameters ==============================

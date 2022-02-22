@@ -277,11 +277,11 @@ def get_norm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]
     theta values, and return a normalised version.
     """
     lims = np.array(fp.free_param_lims())
-    islog = np.array(fp.is_log(), dtype=np.bool8)
+    islog = np.array(fp.log_scale(), dtype=np.bool8)
     # lims = np.where(islog, np.log(lims), lims)
 
     def f(dt: np.ndarray) -> np.ndarray:
-        assert dt.shape[1] == limits.shape[0]
+        assert dt.shape[1] == lims.shape[0]
         warnings.simplefilter("ignore")
         dt = np.where(islog, np.log(dt), dt)
         offset = dt - lims[:, 0]
