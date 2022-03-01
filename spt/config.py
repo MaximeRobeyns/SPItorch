@@ -185,7 +185,7 @@ class DynestyParams(ConfigClass):
 class SANParams(san.SANParams):
 
     # Number of epochs to train for (offline training)
-    epochs: int = 3
+    epochs: int = 10
 
     batch_size: int = 1024
 
@@ -198,10 +198,10 @@ class SANParams(san.SANParams):
     data_dim: int = len(ForwardModelParams().free_params)
 
     # shape of the network 'modules'
-    module_shape: list[int] = [512, 512]
+    module_shape: list[int] = [1024, 1024]
 
     # features passed between sequential blocks
-    sequence_features: int = 8
+    sequence_features: int = 16
 
     likelihood: Type[san.SAN_Likelihood] = san.MoG
 
@@ -216,7 +216,7 @@ class SANParams(san.SANParams):
     train_rsample: bool = False
 
     # Optimiser (Adam) learning rate
-    opt_lr: float = 1e-4
+    opt_lr: float = 1e-3
 
     # The (normalised) parameter limits.
     limits: Tensor = ForwardModelParams().free_param_lims(normalised=True)

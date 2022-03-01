@@ -34,10 +34,10 @@ import spt.config as cfg
 
 from spt.types import Tensor
 
-__all__ = ["RWMH", "RWMH_sampler"]
+__all__ = ["RWMH", "RWMH_sampler", "HMC", "HMC_sampler"]
 
 
-def RWMH(logpdf: Callable[[Tensor, Tensor]], initial_pos: Tensor,
+def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
          sigma: float = 0.1) -> Generator[Tensor, None, None]:
     """
     Random walk Metropolis-Hastings.
@@ -58,10 +58,10 @@ def RWMH(logpdf: Callable[[Tensor, Tensor]], initial_pos: Tensor,
         proposal = pos + eps
         proposal_log_prob = logpdf(proposal)
 
-        log_unif = t.randn(size).log().to(device, dtype)
+        log_unif = t.randn(size[0]).log().to(device, dtype)
         accept = log_unif < proposal_log_prob - log_prob
 
-        pos = t.where(accept, proposal, pos)
+        pos = t.where(accept.unsqueeze(-1), proposal, pos)
         log_prob = t.where(accept, proposal_log_prob, log_prob)
 
         yield pos
@@ -80,11 +80,11 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
         burn: the number of 'burn-in' steps.
         burn_chains: the number of chains to use while burning in. Defaults to
             `chains`.
-        initial_pos: optional tensor of starting positions, size [dim, chains]
+        initial_pos: optional tensor of starting positions, size [chains, dim]
         dim: number of dimensions for samples / the target distribution
         sigma: variance of Gaussian random step size
 
-    Returns: a tensor of shape [N, dim, chains], for `dim` the number of
+    Returns: a tensor of shape [N, chains, dim], for `dim` the number of
         dimensions per sample.
     """
     logging.info('Beginning RWMH sampling')
@@ -92,23 +92,23 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
     if burn_chains is None:
         burn_chains = chains
 
-    samples = t.empty((N, dim, chains), device=device, dtype=dtype)
+    samples = t.empty((N, chains, dim), device=device, dtype=dtype)
 
     with Progress() as prog:
         burn_t = prog.add_task("Burning-in...", total = burn)
 
-        pos = t.randn((dim, burn_chains), device=device, dtype=dtype)
+        pos = t.randn((burn_chains, dim), device=device, dtype=dtype)
         # used as a circular buffer
         init = initial_pos if initial_pos is not None else \
-            t.randn((dim, chains), device=device, dtype=dtype)
+            t.randn((chains, dim), device=device, dtype=dtype)
 
         # burn in phase
-        burn_sampler = RWMH(logpdf, pos, sigma)
+        burn_sampler = RWMH(logpdf, pos.T, sigma)
         b = 0
         for tmp in burn_sampler:
             lb = (b*burn_chains)%chains
             ub = min(((b+1)*burn_chains)%chains, chains)
-            init[:, lb:ub] = tmp[:, :ub-lb]
+            init[lb:ub] = tmp[:ub-lb]
             b += 1
             if b % 10 == 0:
                 prog.update(burn_t, advance=10)
@@ -133,16 +133,19 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
     return samples
 
 
-def HMC(logpdf: Callable[[Tensor, Tensor]], initial_pos: Tensor,
+def HMC(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
         rho: float = 1e-2, L: int = 10) -> Generator[Tensor, None, None]:
     """
-    Random walk Metropolis-Hastings.
+    A simple Hamiltonian Monte Carlo implementation.
 
     Args:
         logpdf: log probability density function
         initial_pos: where to initialise the chains
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
+
+    TODO: implement more sophisticated learning rate schedule (e.g. Adam), and
+    samplers (e.g. NUTS).
     """
     size = initial_pos.shape
     device, dtype = initial_pos.device, initial_pos.dtype
@@ -153,7 +156,7 @@ def HMC(logpdf: Callable[[Tensor, Tensor]], initial_pos: Tensor,
     while True:
         momentum = t.randn(size).to(device, dtype)
         xl = pos.clone().detach().requires_grad_(True)
-        logpdf(xl).backward(t.ones_like(xl).squeeze())
+        logpdf(xl).backward(t.ones(size[0], device=device, dtype=dtype))
         ul = momentum * rho * xl.grad / 2
 
         for l in range(L):
@@ -161,16 +164,18 @@ def HMC(logpdf: Callable[[Tensor, Tensor]], initial_pos: Tensor,
             xl = xl + rho_l * ul
             xl = xl.detach().requires_grad_(True)
             logpxl = logpdf(xl)
-            logpxl.backward(t.ones_like(xl).squeeze())
+            logpxl.backward(t.ones(size[0], device=device, dtype=dtype))
             ul = ul + rho_l * xl.grad
 
         log_uniform = t.rand(size).log().to(device, dtype)
-        A = logpxl - log_prob - (ul@ul.T - momentum@momentum.T) / 2
+        ul1, ul2 = ul.unsqueeze(-1), ul.unsqueeze(-2)
+        m1, m2 = momentum.unsqueeze(-1), momentum.unsqueeze(-2)
+        A = logpxl - log_prob - (t.bmm(ul2, ul1).squeeze() - t.bmm(m2, m1).squeeze())/2
         A = t.where(A > 0, t.zeros_like(A), A)
         accept = log_uniform < A
 
-        pos = t.where(accept, xl, pos)
-        log_prob = t.where(accept, logxl, log_prob)
+        pos = t.where(accept.unsqueeze(-1), xl, pos)
+        log_prob = t.where(accept, logpxl, log_prob)
         yield pos
 
 
@@ -188,12 +193,12 @@ def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
         burn: the number of 'burn-in' steps.
         burn_chains: the number of chains to use while burning in. Defaults to
             `chains`.
-        initial_pos: optional tensor of starting positions, size [dim, chains]
+        initial_pos: optional tensor of starting positions, size [chains, dim]
         dim: number of dimensions for samples / the target distribution
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
 
-    Returns: a tensor of shape [N, dim, chains], for `dim` the number of
+    Returns: a tensor of shape [N, chains, dim], for `dim` the number of
         dimensions per sample.
     """
     logging.info('Beginning HMC sampling')
@@ -201,15 +206,15 @@ def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
     if burn_chains is None:
         burn_chains = chains
 
-    samples = t.empty((N, dim, chains), device=device, dtype=dtype)
+    samples = t.empty((N, chains, dim), device=device, dtype=dtype)
 
     with Progress() as prog:
-        burn_t = prog.add_task("Burning-in...", total = burn)
+        burn_t = prog.add_task("Burning-in...", total=burn)
 
-        pos = t.randn((dim, burn_chains), device=device, dtype=dtype)
+        pos = t.randn((burn_chains, dim), device=device, dtype=dtype)
         # used as a circular buffer
         init = initial_pos if initial_pos is not None else \
-            t.randn((dim, chains), device=device, dtype=dtype)
+            t.randn((chains, dim), device=device, dtype=dtype)
 
         # burn in phase
         burn_sampler = HMC(logpdf, pos, rho, sigma)
@@ -217,7 +222,7 @@ def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
         for tmp in burn_sampler:
             lb = (b*burn_chains)%chains
             ub = min(((b+1)*burn_chains)%chains, chains)
-            init[:, lb:ub] = tmp[:, :ub-lb]
+            init[lb:ub] = tmp[:ub-lb]
             b += 1
             if b % 10 == 0:
                 prog.update(burn_t, advance=10)

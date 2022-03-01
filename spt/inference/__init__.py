@@ -17,3 +17,4 @@
 """Machine learning inference of stellar population parameters"""
 
 from .base import InferenceParams, ModelParams, Model
+from .mcmc import *

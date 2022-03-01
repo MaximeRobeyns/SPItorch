@@ -608,7 +608,7 @@ class RealObsDataset(Dataset):
         transformations could be arbitrary.
         """
         ys = self.dataset[:, self._x_dim:]
-        for tr in self.theta_transforms:
+        for tr in self.transforms:
             ys = tr(ys)
         return ys.squeeze()
 
@@ -716,7 +716,8 @@ def load_real_data(path: str, filters: list[Filter], split_ratio: float=0.8,
         'batch_size': tbatch_size, 'shuffle': True} | cuda_kwargs
 
     # TODO: implement GalaxyDataset
-    dataset = RealObsDataset(path, filters, transforms, x_transforms, y_transforms)
+    dataset = RealObsDataset(path, filters, transforms, x_transforms,
+                             y_transforms)
 
     n_train = int(len(dataset) * split_ratio)
     n_test = len(dataset) - n_train

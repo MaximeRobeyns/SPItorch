@@ -17,6 +17,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Project-wide utilities file"""
 
+import math
 import numpy as np
 import corner
 import logging
@@ -331,3 +332,45 @@ def plot_corner(samples: Union[np.ndarray, list[np.ndarray]],
     fig.patch.set_facecolor('white')
 
     log.setLevel(l)
+
+
+def plot_posteriors(posterior_ys: np.ndarray, true_ys: np.ndarray,
+                    labels: list[str] = ForwardModelParams().ordered_free_params,
+                    title: str = "", description: str = ""):
+    """Plots posterior values of p(y | x) on the y axis against the true y
+    values on the x axis.
+
+    This allows us to compare parameter estimates over a large number of
+    observations.
+
+    Args:
+        posterior_theta: samples / expected values / mode from posterior p(y | x)
+        true_ys: true values
+    """
+    assert posterior_ys.shape[1] == true_ys.shape[1]
+
+    base_size = 4
+
+    # number of subplots
+    N = true_ys.shape[1]
+    cols = min(N, 3)
+    rows = math.ceil(N/cols)
+
+    fig, ax = plt.subplots(rows, cols, figsize=(base_size*cols, base_size*rows)) #, dpi=150)
+    pltrange = [[0., 1.], [0., 1.]]
+
+    for r in range(rows):
+        for c in range(cols):
+            i = r * cols + c
+            tmp_ax = ax[r][c]
+            tmp_ax.hist2d(true_ys[:, i], posterior_ys[:, i], bins=50, range=pltrange, cmap="Blues")
+            tmp_ax.set_xlabel("True Value")
+            tmp_ax.set_ylabel("Posterior Samples")
+            tmp_ax.set_title(labels[i])
+
+    fig.text(0.05, 1.06, s=title, fontfamily='sans-serif',
+             fontweight='demibold', fontsize=25)
+    fig.text(0.05, 1.005, s=description, fontfamily='sans-serif',
+             fontweight='normal', fontsize=14)
+    fig.patch.set_facecolor('white')
+    fig.tight_layout()
