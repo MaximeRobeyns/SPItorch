@@ -307,15 +307,16 @@ class Prospector:
         vis.visualise_obs(self.obs, show, save, path, title)
 
 
-    def visualise_model(self, theta: Optional[tensor_like] = None,
+    def visualise_model(self, theta: Optional[list[tensor_like]] = None,
+                        theta_labels: list[str] = [],
                         no_obs: bool = False, show: bool = False,
                         save: bool = True, path: str = './results/model.png',
                         title: str = None):
         """Visualise predicted photometry from a theta vector.
 
         Args:
-            theta: An optionally speciifed parameter vector. If omitted, the
-                model's current parameter vector is used.
+            theta: An optionally speciifed list of parameter vectors. If
+                omitted, the model's current parameter vector is used.
             no_obs: Whether to omit the photometric observations. This is
                 useful when using a dummy 'obs' dictionary when using this
                 Prospector class in 'forward-model' mode.
@@ -329,6 +330,10 @@ class Prospector:
         if not no_obs and self.obs['_fake_observation']:
             self._fake_obs_warning('visualise_model')
 
+        # for backward compatability: calling this function without a list of theta
+        if theta is not None and not isinstance(theta, list):
+            theta = [theta]
+
         vis.visualise_model(self.model, self.sps, theta,
-                            None if no_obs else self.obs, show,
-                            save, path, title)
+                            None if no_obs else self.obs, show, save,
+                            theta_labels, path, title)

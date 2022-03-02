@@ -44,7 +44,7 @@ def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
 
     Args:
         logpdf: log probability density function
-        initial_pos: where to initialise the chains
+        initial     _pos: where to initialise the chains
         sigma: purturbation variance for proposals
     """
     size = initial_pos.shape
@@ -103,30 +103,21 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
             t.randn((chains, dim), device=device, dtype=dtype)
 
         # burn in phase
-        burn_sampler = RWMH(logpdf, pos.T, sigma)
-        b = 0
-        for tmp in burn_sampler:
+        burn_sampler = RWMH(logpdf, pos, sigma)
+        for (tmp, b) in zip(burn_sampler, range(burn)):
             lb = (b*burn_chains)%chains
             ub = min(((b+1)*burn_chains)%chains, chains)
             init[lb:ub] = tmp[:ub-lb]
-            b += 1
             if b % 10 == 0:
                 prog.update(burn_t, advance=10)
-            if b == burn:
-                prog.update(burn_t, completed=burn)
-                break
 
         # sampling phase
         sampler = RWMH(logpdf, init)
         sample_t = prog.add_task("Sampling...", total=N)
-        i = 0
-        for pos in sampler:
+        for (pos, i) in zip(sampler, range(N)):
             samples[i] = pos.unsqueeze(0)
             if i % 10 == 0:
                 prog.update(sample_t, advance=10)
-            if i == N:
-                prog.update(sample_t, completed=N)
-                break
 
     duration = time.time() - start
     logging.info(f'Completed {N * chains:,} samples in {duration:.2f} seconds')
@@ -167,7 +158,7 @@ def HMC(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
             logpxl.backward(t.ones(size[0], device=device, dtype=dtype))
             ul = ul + rho_l * xl.grad
 
-        log_uniform = t.rand(size).log().to(device, dtype)
+        log_uniform = t.rand(size[0]).log().to(device, dtype)
         ul1, ul2 = ul.unsqueeze(-1), ul.unsqueeze(-2)
         m1, m2 = momentum.unsqueeze(-1), momentum.unsqueeze(-2)
         A = logpxl - log_prob - (t.bmm(ul2, ul1).squeeze() - t.bmm(m2, m1).squeeze())/2
@@ -181,7 +172,7 @@ def HMC(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
 
 def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
                 burn_chains: int = None, initial_pos: Tensor = None,
-                dim: int = 1, rho: float = None, sigma: float = None,
+                dim: int = 1, rho: float = None, L: float = None,
                 device: t.device = None, dtype: t.dtype = None
                  ) -> Tensor:
     """Hamiltonian Monte Carlo sampler
@@ -217,30 +208,21 @@ def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
             t.randn((chains, dim), device=device, dtype=dtype)
 
         # burn in phase
-        burn_sampler = HMC(logpdf, pos, rho, sigma)
-        b = 0
-        for tmp in burn_sampler:
+        burn_sampler = HMC(logpdf, pos, rho, L)
+        for (tmp, b) in zip(burn_sampler, range(burn)):
             lb = (b*burn_chains)%chains
             ub = min(((b+1)*burn_chains)%chains, chains)
             init[lb:ub] = tmp[:ub-lb]
-            b += 1
             if b % 10 == 0:
                 prog.update(burn_t, advance=10)
-            if b == burn:
-                prog.update(burn_t, completed=burn)
-                break
 
         # sampling phase
-        sampler = HMC(logpdf, init, rho, sigma)
+        sampler = HMC(logpdf, init, rho, L)
         sample_t = prog.add_task("Sampling...", total=N)
-        i = 0
-        for pos in sampler:
+        for (pos, i) in zip(sampler, range(N)):
             samples[i] = pos.unsqueeze(0)
             if i % 10 == 0:
                 prog.update(sample_t, advance=10)
-            if i == N:
-                prog.update(sample_t, completed=N)
-                break
 
     duration = time.time() - start
     logging.info(f'Completed {N * chains:,} samples in {duration:.2f} seconds')

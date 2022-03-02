@@ -192,54 +192,77 @@ def visualise_obs(obs: obs_dict_t, show: bool = True, save: bool = False,
 
 
 def visualise_model(model: SedModel, sps: SSPBasis,
-                    theta: Optional[tensor_like] = None,
+                    theta: Optional[list[tensor_like]] = None,
                     obs: Optional[obs_dict_t] = None,
                     show: bool = True, save: bool = False,
+                    theta_labels: list[str] = [],
                     path: str = None, title: str = None):
     """Visualise output from SedPy model at optionally specified parameters.
 
     Args:
         model: The SedPy model
         sps: SPS object
-        theta: Optional parameter dictionary: if omitted, current model theta
-            is used.
+        theta: Optional list of parameter dictionaries: if omitted, current
+            model theta is used.
         obs: Observation dictionary (note; this may be a 'dummy' dictionary)
         show: Whether to show the plot
         save: Whether to save the plot
+        theta_labels: an optional list of labels for each provided theta.
         path: Filepath to save the plot at (default './results/model.png')
         title: An optional title to override the default (Modelled Photometry)
     """
     fig, ax = plt.subplots(figsize=(16, 8), dpi=300)
     omit_obs = False
 
-    lg = 'Visualising model predictions'
+    lg = 'Visualising forward model predictions'
     if obs is None:
         from spt.config import ForwardModelParams
         mp = ForwardModelParams()
         obs = mp.build_obs_fn(mp.filters, None)
         lg += ' without observations'
         omit_obs = True
-    else:
-        _plot_obs_photometry(obs)
+    # else:
+    #     _plot_obs_photometry(obs)
 
     if theta is None:
-        theta = model.theta.copy()
+        theta = [model.theta.copy()]
         lg += ' from [bold]model.theta[/bold]'
     else:
         lg += ' from custom theta.'
 
     logging.info(lg)
 
-    spec, phot, _ = model.sed(theta, obs, sps)
-    wphot = obs['phot_wave']
-    wspec = _get_observer_frame_wavelengths(model, sps)
-    xbounds, ybounds = _get_bounds(obs, wspec, spec)
+    if len(theta_labels) == 0:
+        theta_labels = [""] * len(theta)
+    else:
+        assert len(theta_labels) == len(theta)
 
-    ax.loglog(wspec, spec, label='Model spectrum', lw=0.7, color=colours['lb'],
-              alpha=0.7)
-    ax.errorbar(wphot, phot, label='Model photometry', marker='s',
-                markersize=10, alpha=0.8, ls='', lw=3, markerfacecolor='none',
-                markeredgecolor=colours['b'], markeredgewidth=3)
+    xbounds, ybounds = None, None
+
+    for i, (t, l) in enumerate(zip(theta, theta_labels)):
+
+        spec, phot, _ = model.sed(t, obs, sps)
+        wphot = obs['phot_wave']
+        wspec = _get_observer_frame_wavelengths(model, sps)
+        tmpx, tmpy = _get_bounds(obs, wspec, spec)
+        if xbounds is None:
+            xbounds = tmpx
+        if ybounds is None:
+            ybounds = tmpy
+        xbounds = (min(xbounds[0], tmpx[0]), max(xbounds[1], tmpx[1]))
+        ybounds = (min(ybounds[0], tmpy[0]), max(ybounds[1], tmpy[1]))
+
+        c = list(colours.values())[i%len(colours)]
+        label = "" if l == "" else f' ({l})'
+
+        ax.loglog(wspec, spec, label=f'Model spectrum{label}', lw=0.7,
+                  color=c, alpha=0.7)
+        ax.errorbar(wphot, phot, # label=f'Model photometry{label}',
+                    marker='s',
+                    markersize=10, alpha=0.8, ls='', lw=3,
+                    markerfacecolor='none', markeredgecolor=c,
+                    markeredgewidth=3)
+
     if not omit_obs:
         ax.errorbar(wphot, obs['maggies'], yerr=obs['maggies_unc'],
                     label='Observed photometry', marker='o', markersize=10,
@@ -336,7 +359,7 @@ def plot_corner(samples: Union[np.ndarray, list[np.ndarray]],
 
 def plot_posteriors(posterior_ys: np.ndarray, true_ys: np.ndarray,
                     labels: list[str] = ForwardModelParams().ordered_free_params,
-                    title: str = "", description: str = ""):
+                    title: str = "", description: str = "", lims: bool = True):
     """Plots posterior values of p(y | x) on the y axis against the true y
     values on the x axis.
 
@@ -357,11 +380,13 @@ def plot_posteriors(posterior_ys: np.ndarray, true_ys: np.ndarray,
     rows = math.ceil(N/cols)
 
     fig, ax = plt.subplots(rows, cols, figsize=(base_size*cols, base_size*rows)) #, dpi=150)
-    pltrange = [[0., 1.], [0., 1.]]
+    pltrange = [[0., 1.], [0., 1.]] if lims else None
 
     for r in range(rows):
         for c in range(cols):
             i = r * cols + c
+            if i >= len(labels):
+                break
             tmp_ax = ax[r][c]
             tmp_ax.hist2d(true_ys[:, i], posterior_ys[:, i], bins=50, range=pltrange, cmap="Blues")
             tmp_ax.set_xlabel("True Value")
