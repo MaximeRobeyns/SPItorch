@@ -31,9 +31,9 @@ from torch.utils.data import DataLoader
 
 import spt.config as cfg
 
-from . import Model, ModelParams, InferenceParams
+from spt.inference import Model, ModelParams, InferenceParams
 from spt.types import Tensor, tensor_like
-from spt.inference.utils import squareplus_f
+from spt.inference.utils import squareplus_f, TruncatedNormal
 
 
 # Likelihoods -----------------------------------------------------------------
@@ -47,6 +47,8 @@ class SAN_Likelihood:
     def __init__(*args, **kwargs):
         pass
 
+    supports_lim: bool = False
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -59,21 +61,24 @@ class SAN_Likelihood:
         return 2
 
     @abstractmethod
-    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
         """Evaluate the log probability of `value` under a distribution
         parametrised by `params`"""
         raise NotImplementedError
 
     @abstractmethod
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, **kwargs) -> Tensor:
         """Draw a single sample from a distribution parametrised by `params`"""
         raise NotImplementedError
 
     @abstractmethod
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, **kwargs) -> Tensor:
         """Draw a single reparametrised sample from a distribution parametrised
         by `params`"""
         raise NotImplementedError
+
+    def to(self, device: t.device = None, dtype: t.dtype = None):
+        pass
 
 
 class Gaussian(SAN_Likelihood):
@@ -85,16 +90,16 @@ class Gaussian(SAN_Likelihood):
         loc, scale = params.split(1, -1)
         return loc.squeeze(), squareplus_f(scale.squeeze())
 
-    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
         loc, scale = self._extract_params(params)
         return t.distributions.Normal(
                 loc.squeeze(), scale.squeeze()).log_prob(value)
 
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, **kwargs) -> Tensor:
         return t.distributions.Normal(
                 *self._extract_params(params)).sample()
 
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, **kwargs) -> Tensor:
         return t.distributions.Normal(
                 *self._extract_params(params)).rsample()
 
@@ -108,15 +113,15 @@ class Laplace(SAN_Likelihood):
         loc, scale = params.split(1, -1)
         return loc.squeeze(), squareplus_f(scale.squeeze())
 
-    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).log_prob(value)
 
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, **kwargs) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).sample()
 
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, **kwargs) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).rsample()
 
@@ -169,13 +174,13 @@ class MoG(SAN_Likelihood):
         norms = self._stable_norms(loc, scale)
         return t.distributions.MixtureSameFamily(cat, norms)
 
-    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
         return self._gmm_from_params(params).log_prob(value)
 
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, **kwargs) -> Tensor:
         return self._gmm_from_params(params).sample()
 
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, **kwargs) -> Tensor:
         sample_shape = t.Size()
         loc, scale, k = self._extract_params(params)
         gather_dim = len(loc.shape) - 1
@@ -195,7 +200,7 @@ class MoG(SAN_Likelihood):
         samples = t.gather(comp_samples, gather_dim, mix_sample_r)
         return samples.squeeze(gather_dim)
 
-    def rsample_all(self, params: Tensor) -> Tensor:
+    def rsample_all(self, params: Tensor, **kwargs) -> Tensor:
         """Returns output K times the size of the input"""
         # TODO: finish this.
         loc, scale, _ = self._extract_params(params)
@@ -205,8 +210,84 @@ class MoG(SAN_Likelihood):
         return comp_samples
 
 
+class TruncatedMoG(MoG):
+    """
+    A truncated mixture of Gaussians, which allows us to repsect prior parameter
+    limits.
+    """
+
+    supports_lim = True
+    name: str = "TMoG"  # used for file names
+
+    def __init__(self, lims: Tensor, K: int, mult_eps: float=1e-4, abs_eps: float=1e-4,
+                 validate_args: bool = True):
+        """
+        Args:
+            K: number of mixture components
+            lims: limits on each of the dimensions [D, 2]
+        """
+        super().__init__(K, mult_eps, abs_eps)
+        assert lims.shape[-1] == 2, "Expected lims to have [min, max] per element."
+        self.A, self.B = lims[:, 0], lims[:, 1]
+        self._val_args = validate_args
+
+    def to(self, device: t.device = None, dtype: t.dtype = None):
+        self.A = self.A.to(device, dtype)
+        self.B = self.B.to(device, dtype)
+
+    def _stable_norms(self, loc: Tensor, scale: Tensor, A: Tensor, B: Tensor
+                      ) -> TruncatedNormal:
+        try:
+            return TruncatedNormal(loc, scale, A, B, self._val_args)
+        except ValueError:  # constraint violation
+            return TruncatedNormal(loc, self._stabilise(scale), A, B, self._val_args)
+
+    def _gmm_from_params(self, params: Tensor, d: Optional[int] = None
+                         ) -> t.distributions.MixtureSameFamily:
+        loc, scale, k = self._extract_params(params)
+        cat = t.distributions.Categorical(logits=k)
+
+        if d is None:  # [B, D, K]
+            A, B = self.A[None, ..., None], self.B[None, ..., None]
+        else:  # [B, 1, K]
+            A, B = self.A[d][None,...,None], self.B[d][None, ..., None]
+        A = A.expand(loc.shape).to(loc.device, loc.dtype)
+        B = B.expand(loc.shape).to(loc.device, loc.dtype)
+
+        norms = self._stable_norms(loc, scale, A, B)
+        return t.distributions.MixtureSameFamily(cat, norms)
+
+    def log_prob(self, value: Tensor, params: Tensor, d: Optional[int] = None
+                 ) -> Tensor:
+        """Compute the log probability of `value` under the truncated mixture of
+        Gaussian distribution parametrised by `params`
+
+        Args:
+            value: the input for which to find the log probability
+            params: the parameters of the mixture distribution
+            d (optional): the dimension from which to select the limits. If
+                omitted, we use all the limits.
+        """
+        return self._gmm_from_params(params, d).log_prob(value)
+
+    def sample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
+        A, B = (self.A, self.B) if d is None else (self.A[d], self.B[d])
+        return self._gmm_from_params(params, d).sample()#.clamp(A, B)
+
+    def rsample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
+        raise NotImplementedError
+
+    def rsample_all(self, params: Tensor, d: Optional[int] = None):
+        raise NotImplementedError
+
+    # def log_prob(self, value: Tensor, params: Tensor):
+
+
 # class FixedMoG(MoG):
-#     """A fixed-weight mixture of Gaussians."""
+#     """
+#     A _frozen_-weight mixture of Gaussians; that is, we freeze the mixture
+#     weights, do some training, select some new ones, do some more training etc.
+#     """
 #
 #     def n_params(self) -> int:
 #         return 2 * self.K  # loc, scale
@@ -258,7 +339,7 @@ class MoST(SAN_Likelihood):
         loc, scale, k = params.reshape(B, -1, self.K, 3).tensor_split(3, 3)
         return loc.squeeze(-1), squareplus_f(scale).squeeze(-1), F.softmax(k, -1).squeeze(-1)
 
-    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
         loc, scale, k = self._extract_params(params)
         cat = t.distributions.Categorical(k)
         sts = t.distributions.StudentT(1., loc, scale)
@@ -275,6 +356,23 @@ class MoST(SAN_Likelihood):
     def rsample(self, _: Tensor) -> Tensor:
         raise NotImplementedError()
 
+
+class ACFLikelihood(SAN_Likelihood):
+    """A likelihood which is based on a normalising flow"""
+
+    def name(self) -> str:
+        return "Affine Coupling Flow"
+
+    def n_params(self) -> int:
+        """number of parameters required to parametrise the flow layer
+
+        This is essentially the nunber of output features for the d'th layer
+        head.
+        """
+        raise NotImplementedError
+
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+        raise NotImplementedError
 
 # SAN Description -------------------------------------------------------------
 
@@ -369,9 +467,10 @@ class SAN(Model):
         self.limits = t.tensor(mp.limits, dtype=mp.dtype, device=mp.device) \
                 if mp.limits is not None else None  # output prediction limits
 
-        if self.limits is not None:
-            self.offsets = self.limits[:, 0]
-            self.lim_scale = self.limits[:, 1] - self.limits[:, 0]
+        if self.limits is not None and not self.likelihood.supports_lim:
+            logging.warning((
+                'SAN limits have been provided by the selected SAN likelihood'
+                f'({self.likelihood.name}) does not support limits.'))
 
         # Initialise the network
         self.network_blocks = nn.ModuleList()
@@ -395,6 +494,7 @@ class SAN(Model):
 
         if mp.device == t.device('cuda'):
             self.to(mp.device, mp.dtype)
+            self.likelihood.to(mp.device, mp.dtype)
 
         # Strange mypy error requires this to be put here although it is
         # perfectly well defined and typed in the super class ¯\_(ツ)_/¯
@@ -508,13 +608,9 @@ class SAN(Model):
             # draw single sample from p(y_d | y_<d, x)
             params = self.block_heads[d][1](H)
             if rsample:
-                y_d = self.likelihood.rsample(params)
+                y_d = self.likelihood.rsample(params, d=d)
             else:
-                y_d = self.likelihood.sample(params)
-
-            # if self.limits is not None:
-            #     # y_d = t.clip(y_d, self.limits[:, 0], self.limits[:, 1])
-            #     y_d = self.offsets[d] + t.sigmoid(y_d) * self.lim_scale[d]
+                y_d = self.likelihood.sample(params, d=d)
 
             ys = t.cat((ys, y_d), -1)
             self.last_params[:, d] = params
@@ -620,3 +716,13 @@ class SAN(Model):
         samples = self.forward(x, rsample)
 
         return samples
+
+
+if __name__ == '__main__':
+
+    from spt import config as cfg
+
+    logging.info(f'Beginning SAN')
+    sp = cfg.SANParams()
+    s = SAN(sp)
+    logging.info(s)
