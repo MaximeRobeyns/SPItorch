@@ -172,7 +172,7 @@ def HMC(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
 
 def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
                 burn_chains: int = None, initial_pos: Tensor = None,
-                dim: int = 1, rho: float = None, L: float = None,
+                dim: int = 1, rho: float = 1e-2, L: int = 10,
                 device: t.device = None, dtype: t.dtype = None
                  ) -> Tensor:
     """Hamiltonian Monte Carlo sampler

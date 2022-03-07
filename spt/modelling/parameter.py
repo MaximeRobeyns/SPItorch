@@ -150,15 +150,15 @@ class ParamConfig:
                 tmp_params |= TemplateLibrary[t]
 
         # Allows us to override parameters with the manually-defined parameters:
-        for p in self.model_params:
-            tmp_params |= p.to_dict()
+        for param in self.model_params:
+            tmp_params |= param.to_dict()
 
         # Identify parameters defined on a logarithmic scale for normalisation.
-        for p in tmp_params.keys():
+        for tmp_param in tmp_params.keys():
             try:
-                tpp = tmp_params[p]['prior']
-                tmp_params[p]['_log_scale'] = isinstance(tpp, (ppr.LogNormal,
-                                                               ppr.LogUniform))
+                tpp = tmp_params[tmp_param]['prior']
+                tmp_params[tmp_param]['_log_scale'] = \
+                    isinstance(tpp, (ppr.LogNormal, ppr.LogUniform))
             except KeyError:  # not all parameters have a prior.
                 continue
 

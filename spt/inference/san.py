@@ -418,7 +418,6 @@ class SANParams(ModelParams):
         pass
 
     @property
-    @abstractmethod
     def train_rsample(self) -> bool:
         """Whether to stop gradients at the autoregressive step"""
         return False
@@ -591,7 +590,8 @@ class SAN(Model):
         # batch size
         B = x.size(0)
         ys = t.empty((B, 0), dtype=self.dtype, device=self.device)
-        self.last_params = t.empty((B, self.data_dim, self.likelihood.n_params()),
+        self.last_params = t.empty((B, self.data_dim,
+                                    self.likelihood.n_params()),
                                    dtype=self.dtype, device=self.device)
 
         seq_features = t.empty((B, 0), dtype=self.dtype, device=self.device)

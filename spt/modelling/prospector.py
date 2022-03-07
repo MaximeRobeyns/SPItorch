@@ -89,6 +89,7 @@ def save_and_load(mm: MCMCMethod) -> Callable[[ffit_t], Callable[["Prospector", 
                 always_fit = False
 
             if '_survey' in self.obs:
+                assert isinstance(self.obs['_survey'], str)
                 hfile = self.results_fpath(self.index, mm, survey=self.obs['_survey'])
             else:
                 hfile = self.results_fpath(self.index, mm)
@@ -99,9 +100,9 @@ def save_and_load(mm: MCMCMethod) -> Callable[[ffit_t], Callable[["Prospector", 
                     self.load_fit_results(hfile)
                     return
 
-            run_params = {}
+            run_params: prun_params_t = {}
             kwargs |= {'run_params': run_params}
-            fit_func(self, *args, **kwargs)
+            fit_func(self, *args, **kwargs) # type: ignore
 
             assert self.fit_output is not None
 
@@ -118,7 +119,8 @@ def save_and_load(mm: MCMCMethod) -> Callable[[ffit_t], Callable[["Prospector", 
 
 class Prospector:
 
-    def __init__(self, observation: Optional[pd.Series] = None, mp = ForwardModelParams):
+    def __init__(self, observation: Optional[pd.Series] = None,
+                 mp = ForwardModelParams):
         """Construct a prospector instance for simulation and MCMC-based
         parameter inference.
 
@@ -135,11 +137,13 @@ class Prospector:
             self.index = -1
 
         self.obs: obs_dict_t = mp.build_obs_fn(mp.filters, observation)
-        logging.info(f'Created obs dict with filters\n{[f.name for f in self.obs["filters"]]}')
+        logging.info((f'Created obs dict with filters:'
+                      f'{[f.name for f in self.obs["filters"]]}')) # type: ignore
         logging.debug(f'Created obs dict: {self.obs}')
 
         self.model: SedModel = mp.build_model_fn(mp.all_params, mp.ordered_params)
-        logging.info(f'Created model:\n\tfree params {self.model.free_params},\n\tfixed: {self.model.fixed_params})')
+        logging.info((f'Created model:\n\tfree params {self.model.free_params}'
+                      f'\tfixed: {self.model.fixed_params})'))
         logging.debug(f'Created model: {self.model}')
 
         logging.info(f'Creating sps object...')
@@ -173,6 +177,7 @@ class Prospector:
         c.rule('Prospector Instance')
         c.print('Model is:')
         c.print(self.model)
+        assert isinstance(self.obs["filters"], list)
         c.print(f'Filters:\n{[f.name for f in self.obs["filters"]]}')
         c.rule()
         return c.end_capture()
@@ -213,8 +218,9 @@ class Prospector:
         run_params["min_method"] = fp.min_method.value
         run_params["nmin"] = fp.nmin
 
-        self.fit_output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
-                                    **run_params)
+        self.fit_output = fit_model(self.obs, self.model, self.sps,
+                                    lnprobfn=lnprobfn, **run_params)
+        assert self.fit_output is not None
         (results, time) = self.fit_output['optimization']
         logging.info(f'Fitting took {time:.2f}s')
         assert results is not None
@@ -242,8 +248,9 @@ class Prospector:
         elif ep.pool == ConcurrencyMethod.none:
             run_params['pool'] = None
 
-        self.fit_output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
-                                    **run_params)
+        self.fit_output = fit_model(self.obs, self.model, self.sps,
+                                    lnprobfn=lnprobfn, **run_params)
+        assert self.fit_output is not None
         logging.info(f'Finished EMCEE sampling in {self.fit_output["sampling"][1]:.2f}s')
 
     @save_and_load(MCMCMethod.Dynesty)
@@ -258,8 +265,9 @@ class Prospector:
 
         run_params |= dp.to_dict() | {'dynesty': True, 'emcee': False}
 
-        self.fit_output = fit_model(self.obs, self.model, self.sps, lnprobfn=lnprobfn,
-                           **run_params)
+        self.fit_output = fit_model(self.obs, self.model, self.sps,
+                                    lnprobfn=lnprobfn, **run_params)
+        assert self.fit_output is not None
         logging.info(f'Finished Dynesty sampling in {self.fit_output["sampling"][1]:.2f}s')
 
     def load_fit_results(self, file: str = None, index: int = None,

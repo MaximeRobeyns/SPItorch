@@ -42,9 +42,9 @@ class Simulator:
             # Uses catalogue in InferenceParams
             o = load_observation(filters=mp.filters)
 
-        self.obs = mp.build_obs_fn(mp.filters, o)
-        self.model = mp.build_model_fn(mp.all_params, mp.ordered_params)
-        self.sps = mp.build_sps_fn(**mp.sps_kwargs)
+        self.obs = mp.build_obs_fn(mp.filters, o)  # type: ignore
+        self.model = mp.build_model_fn(mp.all_params, mp.ordered_params)  # type: ignore
+        self.sps = mp.build_sps_fn(**mp.sps_kwargs)  # type: ignore
 
         self.dim = len(mp.free_params)
         self.phot_dim = len(fmp.filters)
@@ -115,7 +115,7 @@ def main(sp: SamplingParams = SamplingParams()):
 
     C = sp.concurrency
     N = sp.n_samples // C
-    status_q = Queue()
+    status_q: Queue = Queue()
 
     logging.info(f'Creating a dataset size {sp.n_samples} across {C} workers')
 

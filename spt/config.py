@@ -104,7 +104,7 @@ class SamplingParams(ConfigClass):
 class InferenceParams(inference.InferenceParams):
 
     # The model to use
-    model: inference.Model = san.SAN
+    model: inference.model_t = san.SAN
 
     # Train / test split ratio (offline training only)
     split_ratio: float = 0.9
@@ -222,7 +222,7 @@ class SANParams(san.SANParams):
 
     # The (normalised) parameter limits.
     # TODO remove this from here?
-    limits: Tensor = ForwardModelParams().free_param_lims(normalised=True)
+    limits: Any = ForwardModelParams().free_param_lims(normalised=True)
     # limits: Tensor = t.tensor([0.,1.]).repeat(len(ForwardModelParams().free_params), 1)
 
 

@@ -162,14 +162,6 @@ class TruncatedStandardNormal(Distribution):
         return self.icdf(p)
 
 
-# class TruncatedNormall(TransformedDistribution):
-#
-#     def __init__(self, loc, scale, a, b, validate_args=None):
-#         base = TruncatedStandardNormal(a, b, validate_args=validate_args)
-#         tr = [AffineTransform(loc=loc, scale=scale)]
-#         super(TruncatedNormal, self).__init__(base, tr, validate_args=validate_args)
-
-
 class TruncatedNormal(TruncatedStandardNormal):
     """The general truncated normal distribution.
 
@@ -183,11 +175,6 @@ class TruncatedNormal(TruncatedStandardNormal):
     }
 
     has_rsample = True
-
-    # @constraints.dependent_property
-    # def support(self):
-    #     # Note: this is specific for use in a mixture distribution
-    #     return constraints.interval(self.a.min(-1)[0], self.b.max(-1)[0])
 
     def __init__(self, loc, scale, a, b, validate_args=None):
         self.loc, self.scale, a, b = broadcast_all(loc, scale, a, b)
@@ -214,3 +201,11 @@ class TruncatedNormal(TruncatedStandardNormal):
 
     def log_prob(self, value):
         return super(TruncatedNormal, self).log_prob(self._to_std_rv(value)) - self._log_scale
+
+
+# class TruncatedNormall(TransformedDistribution):
+#
+#     def __init__(self, loc, scale, a, b, validate_args=None):
+#         base = TruncatedStandardNormal(a, b, validate_args=validate_args)
+#         tr = [AffineTransform(loc=loc, scale=scale)]
+#         super(TruncatedNormal, self).__init__(base, tr, validate_args=validate_args)

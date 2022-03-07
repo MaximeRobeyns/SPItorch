@@ -218,7 +218,8 @@ def visualise_model(model: SedModel, sps: SSPBasis,
     if obs is None:
         from spt.config import ForwardModelParams
         mp = ForwardModelParams()
-        obs = mp.build_obs_fn(mp.filters, None)
+        # see mypy #5485
+        obs = mp.build_obs_fn(mp.filters, None)  # type: ignore
         lg += ' without observations'
         omit_obs = True
     # else:
@@ -237,7 +238,8 @@ def visualise_model(model: SedModel, sps: SSPBasis,
     else:
         assert len(theta_labels) == len(theta)
 
-    xbounds, ybounds = None, None
+    b_init = False
+    xbounds, ybounds = (0., 0.), (0., 0.)
 
     for i, (t, l) in enumerate(zip(theta, theta_labels)):
 
@@ -245,10 +247,8 @@ def visualise_model(model: SedModel, sps: SSPBasis,
         wphot = obs['phot_wave']
         wspec = _get_observer_frame_wavelengths(model, sps)
         tmpx, tmpy = _get_bounds(obs, wspec, spec)
-        if xbounds is None:
-            xbounds = tmpx
-        if ybounds is None:
-            ybounds = tmpy
+        if not b_init:
+            xbounds, ybounds, b_init = tmpx, tmpy, True
         xbounds = (min(xbounds[0], tmpx[0]), max(xbounds[1], tmpx[1]))
         ybounds = (min(ybounds[0], tmpy[0]), max(ybounds[1], tmpy[1]))
 

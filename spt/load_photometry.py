@@ -499,7 +499,7 @@ class InMemoryObsDataset(Dataset):
 
     def __getitem__(self, idx: Union[int, list[int], Tensor]) -> tuple[tensor_like, tensor_like]:
 
-        if isinstance(idx, Tensor):
+        if isinstance(idx, t.tensor):
             idx = idx.to(dtype=t.int).tolist()
 
         data = self.dataset[idx]
@@ -618,7 +618,7 @@ class RealObsDataset(Dataset):
     def __getitem__(self, idx: Union[int, list[int], Tensor]
             ) -> tuple[tensor_like, tensor_like]:
 
-        if isinstance(idx, Tensor):
+        if isinstance(idx, t.tensor):
             idx = idx.to(dtype=t.int).tolist()
 
         data = self.dataset[idx]

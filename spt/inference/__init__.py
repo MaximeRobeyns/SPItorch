@@ -16,5 +16,5 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Machine learning inference of stellar population parameters"""
 
-from .base import InferenceParams, ModelParams, Model
+from .base import *
 from .mcmc import *

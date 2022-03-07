@@ -30,6 +30,8 @@ from torch.utils.data import DataLoader
 from spt.utils import ConfigClass
 from spt.types import Tensor, tensor_like
 
+__all__ = ['InferenceParams', 'ModelParams', 'Model', 'model_t']
+
 
 class InferenceParams(ConfigClass):
     """Abstract configuration for the inference section of the progra."""
@@ -38,7 +40,7 @@ class InferenceParams(ConfigClass):
     @abstractmethod
     # Type is `Any` due to poorly thought out design causing a circular
     # dependency. The refactor is probably not worth the headache.
-    def model(self) -> "Model":
+    def model(self) -> "model_t":
         """The model to use"""
         pass
 

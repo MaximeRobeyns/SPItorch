@@ -40,7 +40,6 @@ build_sps_fn_t = Callable[[Any], SSPBasis]
 build_model_fn_t = Callable[[dict[str, pdict_t], Optional[list[str]]], SedModel]
 
 
-@staticmethod
 def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_dict_t:
     """Build a dictionary of photometry (and perhaps eventually spectra).
 
@@ -78,6 +77,8 @@ def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_di
     obs['maggies'] = m
     obs['maggies_unc'] = mu
 
+    assert isinstance(obs['filters'], list)
+
     # This mask tells us which flux values to conisder in the likelihood.
     # Mask values are True for values that you want to fit.
     obs['phot_mask'] = np.array([True for _ in obs['filters']])
@@ -99,13 +100,11 @@ def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_di
     return fix_obs(obs)
 
 
-@staticmethod
 def build_model(params: dict[str, pdict_t], param_order: Optional[list[str]] = None
                 ) -> SedModel:
     return SedModel(params, param_order=param_order)
 
 
-@staticmethod
 def build_sps(zcontinuous: int = 1) -> SSPBasis:
     """An extremely simple function to build an SPS model."""
     return CSPSpecBasis(zcontinuous=zcontinuous)

@@ -41,19 +41,7 @@ if __name__ == '__main__':
 
     logging.info('Created data loaders')
 
-    model.offline_train()
+    model.offline_train(train_loader, ip)
     logging.info('Trained model')
 
-    # TODO:
-    #
-    # 1. Train the model on a full dataset
-    # 1.1 Draw a corner plot from one of the observations from the test set;
-    # draw the 'real' parameters on top of the plot; this is to show that we
-    # have been able to learn from the synthetic training data.
-    #
-    # => Run EMCEE inference on one of the real galaxies from a survey
-    # => Draw the corner plot for these results (and estimate the real parameter values)
-    #
-    # 2. Run the SAN on the very same galaxy. Get the estimated parameters from
-    # the samples, initialise a model, set the theta values to be mean
-    # estimated parameters from the network, and plot the SEDs.
+    # TODO: show some useful output plots

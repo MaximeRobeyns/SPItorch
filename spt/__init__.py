@@ -22,7 +22,7 @@ __version__ = "0.0.1"
 
 import os, sys
 
-os.environ['SPS_HOME'] = os.path.split(__path__[0])[0] + '/deps/fsps'
+os.environ['SPS_HOME'] = os.path.split(__path__[0])[0] + '/deps/fsps' # type: ignore
 
 from .load_photometry import *
 from .modelling.prospector import Prospector

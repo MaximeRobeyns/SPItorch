@@ -114,7 +114,6 @@ def splash_screen():
 
 def new_sample(dloader: DataLoader, n: int = 1) -> tuple[Tensor, Tensor]:
     dset: Dataset = dloader.dataset
-    assert(isinstance(dset, Sized))
     rand_idxs = t.randperm(len(dset))[:n]
     logging.debug('Random test index :', rand_idxs)
     # [n, data_dim]; concatenate along rows: dim 0
@@ -145,12 +144,12 @@ def get_median_mode(samples: np.ndarray, nbins: int = 1000
 
     # compute median
     median = np.median(samples, 0)
-    mode = []
+    mode: list[np.ndarray] = []
 
     for i in range(samples.shape[1]):
         n, b = np.histogram(samples[:, i], nbins)
-        i = np.argmax(n)
-        mode.append((b[i] + b[i+1])/2)
-    mode = np.array(mode)
+        m = np.argmax(n)
+        mode.append((b[m] + b[m+1])/2)
+    np_mode = np.array(mode)
 
-    return median, mode
+    return median, np_mode

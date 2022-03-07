@@ -21,13 +21,13 @@ import torch as t
 import pandas as pd
 
 from enum import Enum
-from typing import Union
+from typing import Union, Type
 
 # Neural network related ------------------------------------------------------
 
 
 # A PyTorch Tensor
-Tensor = t.Tensor
+Tensor = Type[t.Tensor]
 # One or more tensors used to parametrise a distribution
 DistParams = list[Tensor]
 # NumPy array or PyTorch tensor
