@@ -19,6 +19,7 @@ Implements a "sequential autoregressive network"; a simple, sequential
 procedure for generating autoregressive samples.
 """
 
+import typing
 import logging
 import numpy as np
 import torch as t
@@ -28,6 +29,7 @@ import torch.nn.functional as F
 from abc import abstractmethod
 from typing import Any, Callable, Optional, Type
 from torch.utils.data import DataLoader
+from torch.distributions import Categorical, Normal, MixtureSameFamily
 
 import spt.config as cfg
 
@@ -61,18 +63,18 @@ class SAN_Likelihood:
         return 2
 
     @abstractmethod
-    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         """Evaluate the log probability of `value` under a distribution
         parametrised by `params`"""
         raise NotImplementedError
 
     @abstractmethod
-    def sample(self, params: Tensor, **kwargs) -> Tensor:
+    def sample(self, params: Tensor) -> Tensor:
         """Draw a single sample from a distribution parametrised by `params`"""
         raise NotImplementedError
 
     @abstractmethod
-    def rsample(self, params: Tensor, **kwargs) -> Tensor:
+    def rsample(self, params: Tensor) -> Tensor:
         """Draw a single reparametrised sample from a distribution parametrised
         by `params`"""
         raise NotImplementedError
@@ -90,16 +92,16 @@ class Gaussian(SAN_Likelihood):
         loc, scale = params.split(1, -1)
         return loc.squeeze(), squareplus_f(scale.squeeze())
 
-    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         loc, scale = self._extract_params(params)
         return t.distributions.Normal(
                 loc.squeeze(), scale.squeeze()).log_prob(value)
 
-    def sample(self, params: Tensor, **kwargs) -> Tensor:
+    def sample(self, params: Tensor) -> Tensor:
         return t.distributions.Normal(
                 *self._extract_params(params)).sample()
 
-    def rsample(self, params: Tensor, **kwargs) -> Tensor:
+    def rsample(self, params: Tensor) -> Tensor:
         return t.distributions.Normal(
                 *self._extract_params(params)).rsample()
 
@@ -113,15 +115,15 @@ class Laplace(SAN_Likelihood):
         loc, scale = params.split(1, -1)
         return loc.squeeze(), squareplus_f(scale.squeeze())
 
-    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).log_prob(value)
 
-    def sample(self, params: Tensor, **kwargs) -> Tensor:
+    def sample(self, params: Tensor) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).sample()
 
-    def rsample(self, params: Tensor, **kwargs) -> Tensor:
+    def rsample(self, params: Tensor) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).rsample()
 
@@ -162,125 +164,146 @@ class MoG(SAN_Likelihood):
             S = S.abs()*(1.+self.mult_eps) + self.abs_eps
         return S
 
-    def _stable_norms(self, loc: Tensor, scale: Tensor) -> t.distributions.Normal:
+    def _stable_norms(self, loc: Tensor, scale: Tensor) -> Normal:
         try:
             return t.distributions.Normal(loc, scale)
         except ValueError:
             return t.distributions.Normal(loc, self._stabilise(scale))
 
-    def _gmm_from_params(self, params: Tensor) -> t.distributions.MixtureSameFamily:
+    def _gmm_from_params(self, params: Tensor) -> MixtureSameFamily:
         loc, scale, k = self._extract_params(params)
         cat = t.distributions.Categorical(logits=k)
         norms = self._stable_norms(loc, scale)
         return t.distributions.MixtureSameFamily(cat, norms)
 
-    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         return self._gmm_from_params(params).log_prob(value)
 
-    def sample(self, params: Tensor, **kwargs) -> Tensor:
+    def sample(self, params: Tensor) -> Tensor:
         return self._gmm_from_params(params).sample()
 
-    def rsample(self, params: Tensor, **kwargs) -> Tensor:
-        sample_shape = t.Size()
-        loc, scale, k = self._extract_params(params)
-        gather_dim = len(loc.shape) - 1
-        es = t.Size([])
+    def rsample(self, params: Tensor) -> Tensor:
+        raise NotImplementedError
+        # sample_shape = t.Size()
+        # loc, scale, k = self._extract_params(params)
+        # gather_dim = len(loc.shape) - 1
+        # es = t.Size([])
 
-        mix_sample = t.distributions.Categorical(logits=k).sample()
-        mix_shape = mix_sample.shape
+        # # mix_sample = t.distributions.Categorical(logits=k).sample()
+        # # Rather than re-sampling the mixture components, we freeze them.
+        # mix_sample = kwargs['mix_sample']
+        # mix_shape = mix_sample.shape
 
-        comp_samples = self._stable_norms(loc, scale).rsample(sample_shape)
+        # comp_samples = self._stable_norms(loc, scale).rsample(sample_shape)
 
-        # gather along the k dimension
-        mix_sample_r = mix_sample.reshape(
-            mix_shape + t.Size([1] * (len(es) + 1)))
-        mix_sample_r = mix_sample_r.repeat(
-            t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
+        # # gather along the k dimension
+        # mix_sample_r = mix_sample.reshape(
+        #     mix_shape + t.Size([1] * (len(es) + 1)))
+        # mix_sample_r = mix_sample_r.repeat(
+        #     t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
 
-        samples = t.gather(comp_samples, gather_dim, mix_sample_r)
-        return samples.squeeze(gather_dim)
+        # samples = t.gather(comp_samples, gather_dim, mix_sample_r)
+        # return samples.squeeze(gather_dim)
 
-    def rsample_all(self, params: Tensor, **kwargs) -> Tensor:
+    def rsample_all(self, params: Tensor) -> Tensor:
         """Returns output K times the size of the input"""
+        raise NotImplementedError
         # TODO: finish this.
-        loc, scale, _ = self._extract_params(params)
-        comp_samples = self._stable_norms(loc, scale).rsample(t.Size())
-        # concatenate along the k dimension
-        print(comp_samples.shape)
-        return comp_samples
+        # loc, scale, _ = self._extract_params(params)
+        # comp_samples = self._stable_norms(loc, scale).rsample(t.Size())
+        # # concatenate along the k dimension
+        # print(comp_samples.shape)
+        # return comp_samples
 
 
-class TruncatedMoG(MoG):
+class TruncatedMoG(SAN_Likelihood):
     """
-    A truncated mixture of Gaussians, which allows us to repsect prior parameter
-    limits.
+    A truncated mixture of Gaussians, which allows us to repsect prior
+    parameter limits.
     """
+
+    def __init__(self, lims: Tensor, K: int, mult_eps: float = 1e-4,
+                 abs_eps: float = 1e-4, validate_args: bool = True):
+        """Truncated mixture of Gaussians. We work with tensors of size
+        [B, D, K], for B a (possibly multi-dimensional) batch shape, D the
+        number of dimensions in the mixture, and K the number of mixture
+        components..
+
+        Args:
+            lims: limits on each of the dimensions; size [D, 2] (min, max)
+            K: number of mixture components per dimension
+        """
+        self.K = K
+        self.mult_eps, self.abs_eps = mult_eps, abs_eps
+        assert lims.shape[-1] == 2, "Expected a tensor of [min, max] as lims"
+        self.lower, self.upper = lims[:, 0], lims[:, 1]
+        self._val_args = validate_args
+
 
     supports_lim = True
     name: str = "TMoG"  # used for file names
 
-    def __init__(self, lims: Tensor, K: int, mult_eps: float=1e-4, abs_eps: float=1e-4,
-                 validate_args: bool = True):
-        """
-        Args:
-            K: number of mixture components
-            lims: limits on each of the dimensions [D, 2]
-        """
-        super().__init__(K, mult_eps, abs_eps)
-        assert lims.shape[-1] == 2, "Expected lims to have [min, max] per element."
-        self.A, self.B = lims[:, 0], lims[:, 1]
-        self._val_args = validate_args
+    def n_params(self) -> int:
+        return 5 * self.K  # loc, scale, mixture weight
 
     def to(self, device: t.device = None, dtype: t.dtype = None):
-        self.A = self.A.to(device, dtype)
-        self.B = self.B.to(device, dtype)
+        self.lower = self.lower.to(device, dtype)
+        self.upper = self.upper.to(device, dtype)
+
+    def _extract_params(self, params: Tensor
+                        ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+        B = params.size(0)  # batch size
+        loc, scale, k, a, b = params.reshape(B, -1, self.K, 5).tensor_split(5, 3)
+        return loc.squeeze(-1), squareplus_f(scale).squeeze(-1), \
+            k.squeeze(-1), a.squeeze(-1), b.squeeze(-1)
+
+    def _stabilise(self, S: Tensor) -> Tensor:
+        while not S.gt(0.).all():
+            S = S.abs() * (1. + self.mult_eps) + self.abs_eps
+        return S
 
     def _stable_norms(self, loc: Tensor, scale: Tensor, A: Tensor, B: Tensor
                       ) -> TruncatedNormal:
         try:
             return TruncatedNormal(loc, scale, A, B, self._val_args)
         except ValueError:  # constraint violation
-            return TruncatedNormal(loc, self._stabilise(scale), A, B, self._val_args)
+            return TruncatedNormal(loc, self._stabilise(scale), A, B,
+                                   self._val_args)
 
-    def _gmm_from_params(self, params: Tensor, d: Optional[int] = None
-                         ) -> t.distributions.MixtureSameFamily:
-        loc, scale, k = self._extract_params(params)
-        cat = t.distributions.Categorical(logits=k)
+    def _gmm_from_params(self, params: Tensor) -> MixtureSameFamily:
+        loc, scale, k, a, b = self._extract_params(params)
+        cat = Categorical(logits=k)
+        norms = self._stable_norms(loc, scale, a, b)
+        return MixtureSameFamily(cat, norms)
 
-        if d is None:  # [B, D, K]
-            A, B = self.A[None, ..., None], self.B[None, ..., None]
-        else:  # [B, 1, K]
-            A, B = self.A[d][None,...,None], self.B[d][None, ..., None]
-        A = A.expand(loc.shape).to(loc.device, loc.dtype)
-        B = B.expand(loc.shape).to(loc.device, loc.dtype)
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+        return self._gmm_from_params(params).log_prob(value)
 
-        norms = self._stable_norms(loc, scale, A, B)
-        return t.distributions.MixtureSameFamily(cat, norms)
+    def sample(self, params: Tensor) -> Tensor:
+        return self._gmm_from_params(params).sample()
 
-    def log_prob(self, value: Tensor, params: Tensor, d: Optional[int] = None
-                 ) -> Tensor:
-        """Compute the log probability of `value` under the truncated mixture of
-        Gaussian distribution parametrised by `params`
-
-        Args:
-            value: the input for which to find the log probability
-            params: the parameters of the mixture distribution
-            d (optional): the dimension from which to select the limits. If
-                omitted, we use all the limits.
-        """
-        return self._gmm_from_params(params, d).log_prob(value)
-
-    def sample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
-        A, B = (self.A, self.B) if d is None else (self.A[d], self.B[d])
-        return self._gmm_from_params(params, d).sample()#.clamp(A, B)
-
-    def rsample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
+    def rsample(self, params: Tensor) -> Tensor:
         raise NotImplementedError
 
-    def rsample_all(self, params: Tensor, d: Optional[int] = None):
+    def rsample_all(self, params: Tensor):
         raise NotImplementedError
 
-    # def log_prob(self, value: Tensor, params: Tensor):
+    # TODO: remove if unneeded, left in for reference
+    # def _gmm_from_params(self, params: Tensor, d: Optional[int] = None
+    #                      ) -> t.distributions.MixtureSameFamily:
+    #     loc, scale, k = self._extract_params(params)
+    #     cat = t.distributions.Categorical(logits=k)
+
+    #     if d is None:  # [B, D, K]
+    #         A, B = self.A[None, ..., None], self.B[None, ..., None]
+    #     else:  # [B, 1, K]
+    #         A, B = self.A[d][None,...,None], self.B[d][None, ..., None]
+    #     A = A.expand(loc.shape).to(loc.device, loc.dtype)
+    #     B = B.expand(loc.shape).to(loc.device, loc.dtype)
+
+    #     norms = self._stable_norms(loc, scale, A, B)
+    #     return t.distributions.MixtureSameFamily(cat, norms)
+
 
 
 # class FixedMoG(MoG):
@@ -339,7 +362,7 @@ class MoST(SAN_Likelihood):
         loc, scale, k = params.reshape(B, -1, self.K, 3).tensor_split(3, 3)
         return loc.squeeze(-1), squareplus_f(scale).squeeze(-1), F.softmax(k, -1).squeeze(-1)
 
-    def log_prob(self, value: Tensor, params: Tensor, **kwargs) -> Tensor:
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         loc, scale, k = self._extract_params(params)
         cat = t.distributions.Categorical(k)
         sts = t.distributions.StudentT(1., loc, scale)
@@ -607,13 +630,16 @@ class SAN(Model):
 
             # draw single sample from p(y_d | y_<d, x)
             params = self.block_heads[d][1](H)
+
+            # TODO: include parameter limits as part of params if provided
+
             if rsample:
-                y_d = self.likelihood.rsample(params, d=d)
+                y_d = self.likelihood.rsample(params)
             else:
-                y_d = self.likelihood.sample(params, d=d)
+                y_d = self.likelihood.sample(params)
 
             ys = t.cat((ys, y_d), -1)
-            self.last_params[:, d] = params
+            self.last_params[:, d] = params  # type: ignore
 
         # check we did the sampling right
         assert ys.shape == (x.size(0), self.data_dim)
@@ -668,9 +694,10 @@ class SAN(Model):
         # features) work as expected.
         self.eval()
 
+    @typing.no_type_check
     def sample(self, x_in: tensor_like, n_samples: int = 1000,
-               rsample: bool = False, errs: Optional[tensor_like] = None,
-               *args, **kwargs) -> Tensor:
+               rsample: bool = False, errs: Optional[tensor_like] = None
+               ) -> Tensor:
         """A convenience method for drawing (conditional) samples from p(y | x)
         for a single conditioning point.
 
@@ -692,7 +719,7 @@ class SAN(Model):
         if isinstance(x_in, np.ndarray):
             x_in = t.from_numpy(x_in)
 
-        if not isinstance(x_in, Tensor):
+        if not isinstance(x_in, t.tensor):
             raise ValueError((
                 f'Please provide a PyTorch Tensor (or numpy array) to sample '
                 f'(got {type(x_in)})'))

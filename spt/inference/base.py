@@ -364,7 +364,8 @@ class Model(nn.Module, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def sample(self, x: tensor_like, n_samples: int = 1000, *args, **kwargs) -> Tensor:
+    def sample(self, x: tensor_like, n_samples: int = 1000, *args: Any,
+               **kwargs: Any) -> Tensor:
         """A convenience method for drawing (conditional) samples from p(y | x)
         for a single conditioning point.
 
