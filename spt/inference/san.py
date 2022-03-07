@@ -436,8 +436,8 @@ class SANParams(ModelParams):
 
     @property
     @abstractmethod
-    def batch_norm(self) -> bool:
-        """Whether to use batch normalisation or not"""
+    def layer_norm(self) -> bool:
+        """Whether to use layer norm (batch normalisation) or not"""
         pass
 
     @property
@@ -484,15 +484,20 @@ class SAN(Model):
         kwargs = {} if mp.likelihood_kwargs is None else mp.likelihood_kwargs
         self.likelihood: SAN_Likelihood = mp.likelihood(**kwargs)
 
-        self.batch_norm = mp.batch_norm
+        self.layer_norm = mp.layer_norm
         self.train_rsample = mp.train_rsample
-        self.limits = t.tensor(mp.limits, dtype=mp.dtype, device=mp.device) \
-                if mp.limits is not None else None  # output prediction limits
 
-        if self.limits is not None and not self.likelihood.supports_lim:
-            logging.warning((
-                'SAN limits have been provided by the selected SAN likelihood'
-                f'({self.likelihood.name}) does not support limits.'))
+        if mp.limits is not None:
+            if not isinstance(mp.limits, t.Tensor):
+                self.limits = t.tensor(mp.limits, dtype=mp.dtype, device=mp.device)
+            else:
+                self.limits = mp.limits.to(mp.device, mp.dtype)
+            if not self.likelihood.supports_lim:
+                logging.warning((
+                    'SAN limits have been provided by the selected SAN likelihood'
+                    f'({self.likelihood.name}) does not support limits.'))
+        else:
+            self.limits = None
 
         # Initialise the network
         self.network_blocks = nn.ModuleList()
@@ -538,10 +543,10 @@ class SAN(Model):
             ms = '_'.join([str(l) for l in s])
             name = (f'l{self.likelihood.name}_cd{self.cond_dim}'
                     f'_dd{self.data_dim}_ms{ms}_'
-                    f'lp{self.likelihood.n_params()}_bn{self.batch_norm}_'
+                    f'lp{self.likelihood.n_params()}_ln{self.layer_norm}_'
                     f'lr{self.lr}_e{self.epochs}_bs{self.batch_size}_'
                     f'trsample{self.train_rsample}_')
-            name += 'lim__' if self.limits is not None else ''
+            name += 'lim_' if self.limits is not None else ''
             self.savepath_cached = f'{base}{name}{ident}.pt'
 
         return self.savepath_cached
@@ -572,9 +577,7 @@ class SAN(Model):
 
         for i, (j, k) in enumerate(zip(hs[:-1], hs[1:])):
             block.add_module(name=f'B{d}L{i}', module=nn.Linear(j, k))
-            if self.batch_norm:
-                # add affine=False to bn?
-                # block.add_module(name=f'B{d}BN{i}', module=nn.BatchNorm1d(k, affine=False))
+            if self.layer_norm:
                 block.add_module(name=f'B{d}LN{i}', module=nn.LayerNorm(k))
             block.add_module(name=f'B{d}A{i}', module=nn.ReLU())
         block.to(self.device, self.dtype)
@@ -719,7 +722,7 @@ class SAN(Model):
         if isinstance(x_in, np.ndarray):
             x_in = t.from_numpy(x_in)
 
-        if not isinstance(x_in, t.tensor):
+        if not isinstance(x_in, t.Tensor):
             raise ValueError((
                 f'Please provide a PyTorch Tensor (or numpy array) to sample '
                 f'(got {type(x_in)})'))

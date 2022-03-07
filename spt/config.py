@@ -90,10 +90,11 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 class SamplingParams(ConfigClass):
 
     # n_samples: int = int(50e6)
-    n_samples: int = int(10e6)
+    n_samples: int = int(10e4)
     concurrency: int = 12
     observation: bool = False  # use real observation as obs... should have no effect
-    save_dir: str = './data/dsets/dev/'
+    # save_dir: str = './data/dsets/dev/'
+    save_dir: str = './data/dsets/testing/'
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
@@ -207,12 +208,11 @@ class SANParams(san.SANParams):
     likelihood: Type[san.SAN_Likelihood] = san.MoG
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        # 'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
         'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
     }
 
     # Whether to use batch norm
-    batch_norm: bool = True
+    layer_norm: bool = True
 
     # Whether to use reparametrised sampling during training
     train_rsample: bool = False

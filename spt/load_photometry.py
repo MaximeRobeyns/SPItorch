@@ -499,7 +499,7 @@ class InMemoryObsDataset(Dataset):
 
     def __getitem__(self, idx: Union[int, list[int], Tensor]) -> tuple[tensor_like, tensor_like]:
 
-        if isinstance(idx, t.tensor):
+        if isinstance(idx, t.Tensor):
             idx = idx.to(dtype=t.int).tolist()
 
         data = self.dataset[idx]
@@ -618,7 +618,7 @@ class RealObsDataset(Dataset):
     def __getitem__(self, idx: Union[int, list[int], Tensor]
             ) -> tuple[tensor_like, tensor_like]:
 
-        if isinstance(idx, t.tensor):
+        if isinstance(idx, t.Tensor):
             idx = idx.to(dtype=t.int).tolist()
 
         data = self.dataset[idx]
@@ -729,3 +729,14 @@ def load_real_data(path: str, filters: list[Filter], split_ratio: float=0.8,
     test_loader = DataLoader(test_set, **test_kwargs)
 
     return train_loader, test_loader
+
+
+def new_sample(dloader: DataLoader, n: int = 1) -> tuple[Tensor, Tensor]:
+    dset: Dataset = dloader.dataset
+    rand_idxs = t.randperm(len(dset))[:n]
+    xs, ys = [], []
+    for i in rand_idxs:
+        tmp_xs, tmp_ys = dset.__getitem__(i)
+        xs.append(tmp_xs[None, :])
+        ys.append(tmp_ys[None, :])
+    return t.cat(xs, 0).squeeze(), t.cat(ys, 0).squeeze()

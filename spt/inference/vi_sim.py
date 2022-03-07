@@ -77,7 +77,7 @@ if __name__ == '__main__':
         likelihood_kwargs: Optional[dict[str, Any]] = {
             'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4
         }
-        batch_norm: bool = True
+        layer_norm: bool = True
         opt_lr: float = 1e-4
 
     class PModel(san.SAN):

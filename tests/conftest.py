@@ -16,7 +16,24 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Configuration for PyTest"""
 
+
+import logging
 import pytest
+
+
+from spt.logs import configure_logging
+from spt.config import LoggingParams
+
+
+class LP(LoggingParams):
+    log_to_file: bool = False
+    file_level: int = logging.ERROR
+
+    log_to_console: bool = True
+    console_level: int = logging.ERROR
+
+    debug_logs: bool = False
+    debug_level: int = logging.DEBUG
 
 
 def pytest_addoption(parser):
@@ -27,6 +44,7 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
+    configure_logging(LP())
 
 
 def pytest_collection_modifyitems(config, items):

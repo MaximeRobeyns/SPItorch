@@ -35,13 +35,16 @@ from spt.modelling.parameter import pdict_t
 
 obs_dict_t = dict[str, Union[np.ndarray, list[observate.Filter], bool, None]]
 
-build_obs_fn_t = Callable[[list[Filter], Optional[pd.Series]], obs_dict_t]
-build_sps_fn_t = Callable[[Any], SSPBasis]
-build_model_fn_t = Callable[[dict[str, pdict_t], Optional[list[str]]], SedModel]
+build_obs_fn_t = Callable[[Any, list[Filter], Optional[pd.Series]], obs_dict_t]
+build_sps_fn_t = Callable[[Any, Any], SSPBasis]
+build_model_fn_t = Callable[[Any, dict[str, pdict_t], Optional[list[str]]], SedModel]
 
 
-def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_dict_t:
+def build_obs(_, filters: list[Filter], observation: Optional[pd.Series]) -> obs_dict_t:
     """Build a dictionary of photometry (and perhaps eventually spectra).
+
+    Note: the first argument is _ to emulate a static method (`self` is
+    implicitly passed to this method when it is called).
 
     Args:
         filters: The SPS filter list to use
@@ -100,11 +103,11 @@ def build_obs(filters: list[Filter], observation: Optional[pd.Series]) -> obs_di
     return fix_obs(obs)
 
 
-def build_model(params: dict[str, pdict_t], param_order: Optional[list[str]] = None
+def build_model(_, params: dict[str, pdict_t], param_order: Optional[list[str]] = None
                 ) -> SedModel:
     return SedModel(params, param_order=param_order)
 
 
-def build_sps(zcontinuous: int = 1) -> SSPBasis:
+def build_sps(_, zcontinuous: int = 1) -> SSPBasis:
     """An extremely simple function to build an SPS model."""
     return CSPSpecBasis(zcontinuous=zcontinuous)
