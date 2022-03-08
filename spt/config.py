@@ -204,10 +204,11 @@ class SANParams(san.SANParams):
     # features passed between sequential blocks
     sequence_features: int = 16
 
-    # likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
-    likelihood: Type[san.SAN_Likelihood] = san.MoG
+    likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+    # likelihood: Type[san.SAN_Likelihood] = san.MoG
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
+        'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
         'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
     }
 
@@ -221,8 +222,8 @@ class SANParams(san.SANParams):
     opt_lr: float = 1e-3
 
     # The (normalised) parameter limits.
-    # TODO remove this from here?
-    limits: Any = ForwardModelParams().free_param_lims(normalised=True)
+    # TODO remove
+    # limits: Any = ForwardModelParams().free_param_lims(normalised=True)
     # limits: Tensor = t.tensor([0.,1.]).repeat(len(ForwardModelParams().free_params), 1)
 
 

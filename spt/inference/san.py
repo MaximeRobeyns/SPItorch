@@ -50,6 +50,7 @@ class SAN_Likelihood:
         pass
 
     supports_lim: bool = False
+    # must have lower abd upper properties
 
     @property
     @abstractmethod
@@ -58,8 +59,11 @@ class SAN_Likelihood:
         raise NotImplementedError
 
     def n_params(self) -> int:
-        """Returns the number of parameters required to parametrise this
-        distribution."""
+        """Returns the number of parameters required to parametrise a single
+        dimension of this distribution.
+        e.g. for a Gaussian, this is 2 (loc, scale). For a mixture of K
+        distributions each taking N parameters, this is K * N.
+        """
         return 2
 
     @abstractmethod
@@ -69,18 +73,33 @@ class SAN_Likelihood:
         raise NotImplementedError
 
     @abstractmethod
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
         """Draw a single sample from a distribution parametrised by `params`"""
         raise NotImplementedError
 
     @abstractmethod
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
         """Draw a single reparametrised sample from a distribution parametrised
         by `params`"""
         raise NotImplementedError
 
     def to(self, device: t.device = None, dtype: t.dtype = None):
         pass
+
+
+class TruncatedLikelihood:
+
+    @property
+    @abstractmethod
+    def lower(self) -> Tensor:
+        # Return the lower bound
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def upper(self) -> Tensor:
+        # Return the upper bound
+        raise NotImplementedError
 
 
 class Gaussian(SAN_Likelihood):
@@ -97,11 +116,11 @@ class Gaussian(SAN_Likelihood):
         return t.distributions.Normal(
                 loc.squeeze(), scale.squeeze()).log_prob(value)
 
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         return t.distributions.Normal(
                 *self._extract_params(params)).sample()
 
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         return t.distributions.Normal(
                 *self._extract_params(params)).rsample()
 
@@ -119,11 +138,11 @@ class Laplace(SAN_Likelihood):
         return t.distributions.Laplace(
                 *self._extract_params(params)).log_prob(value)
 
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).sample()
 
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         return t.distributions.Laplace(
                 *self._extract_params(params)).rsample()
 
@@ -179,10 +198,10 @@ class MoG(SAN_Likelihood):
     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         return self._gmm_from_params(params).log_prob(value)
 
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         return self._gmm_from_params(params).sample()
 
-    def rsample(self, params: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         raise NotImplementedError
         # sample_shape = t.Size()
         # loc, scale, k = self._extract_params(params)
@@ -216,7 +235,7 @@ class MoG(SAN_Likelihood):
         # return comp_samples
 
 
-class TruncatedMoG(SAN_Likelihood):
+class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
     """
     A truncated mixture of Gaussians, which allows us to repsect prior
     parameter limits.
@@ -236,26 +255,35 @@ class TruncatedMoG(SAN_Likelihood):
         self.K = K
         self.mult_eps, self.abs_eps = mult_eps, abs_eps
         assert lims.shape[-1] == 2, "Expected a tensor of [min, max] as lims"
-        self.lower, self.upper = lims[:, 0], lims[:, 1]
+        self._lower, self._upper = lims[:, 0].detach(), lims[:, 1].detach()
         self._val_args = validate_args
-
 
     supports_lim = True
     name: str = "TMoG"  # used for file names
 
+    @property
+    def lower(self) -> Tensor:
+        return self._lower
+
+    @property
+    def upper(self) -> Tensor:
+        return self._upper
+
     def n_params(self) -> int:
-        return 5 * self.K  # loc, scale, mixture weight
+        return 3 * self.K  # loc, scale, mixture weight
 
     def to(self, device: t.device = None, dtype: t.dtype = None):
-        self.lower = self.lower.to(device, dtype)
-        self.upper = self.upper.to(device, dtype)
+        self._lower = self._lower.to(device, dtype).detach()
+        self._upper = self._upper.to(device, dtype).detach()
 
-    def _extract_params(self, params: Tensor
-                        ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
-        B = params.size(0)  # batch size
-        loc, scale, k, a, b = params.reshape(B, -1, self.K, 5).tensor_split(5, 3)
-        return loc.squeeze(-1), squareplus_f(scale).squeeze(-1), \
-            k.squeeze(-1), a.squeeze(-1), b.squeeze(-1)
+    def _extract_params(self, params: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+
+        f = lambda x: x.squeeze(-1)# .nan_to_num()
+
+        B = params.size(0)
+        loc, scale, k = params.reshape(B, -1, self.K, 3).tensor_split(3, 3)
+        return f(loc), f(squareplus_f(scale)), f(k)
+        # return loc.squeeze(-1), squareplus_f(scale).squeeze(-1), k.squeeze(-1)
 
     def _stabilise(self, S: Tensor) -> Tensor:
         while not S.gt(0.).all():
@@ -264,50 +292,52 @@ class TruncatedMoG(SAN_Likelihood):
 
     def _stable_norms(self, loc: Tensor, scale: Tensor, A: Tensor, B: Tensor
                       ) -> TruncatedNormal:
+        # TODO clamp loc here?
+        loc = loc.clamp(A, B)
         try:
             return TruncatedNormal(loc, scale, A, B, self._val_args)
         except ValueError:  # constraint violation
             return TruncatedNormal(loc, self._stabilise(scale), A, B,
                                    self._val_args)
 
-    def _gmm_from_params(self, params: Tensor) -> MixtureSameFamily:
-        loc, scale, k, a, b = self._extract_params(params)
-        cat = Categorical(logits=k)
-        norms = self._stable_norms(loc, scale, a, b)
-        return MixtureSameFamily(cat, norms)
+    def _gmm_from_params(self, params: Tensor, d: Optional[int] = None) -> MixtureSameFamily:
+        loc, scale, k = self._extract_params(params)
+        assert not k.isnan().all(), "there are nan values"
+        cat = t.distributions.Categorical(logits=k)
+
+        if d is None:  # [B, D, n_params]
+            A, B = self._lower[None, ..., None], self._upper[None, ..., None]
+        else:  # [B, 1, K]
+            A, B = self._lower[d][None, ..., None], self._upper[d][None, ..., None]
+        A = A.expand(loc.shape).to(loc.device, loc.dtype)
+        B = B.expand(loc.shape).to(loc.device, loc.dtype)
+
+        norms = self._stable_norms(loc, scale, A, B)
+        return t.distributions.MixtureSameFamily(cat, norms)
 
     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
-        return self._gmm_from_params(params).log_prob(value)
+        # We compute the log prob ourselves here due to a bug in
+        # MixtureSameFamily which prevents us from finding the correct support.
 
-    def sample(self, params: Tensor) -> Tensor:
-        return self._gmm_from_params(params).sample()
+        loc, scale, k = self._extract_params(params)
+        A = self._lower[None, ..., None].expand(loc.shape).to(loc.device, loc.dtype)
+        B = self._upper[None, ..., None].expand(loc.shape).to(loc.device, loc.dtype)
+        value = value[..., None].expand(loc.shape)
+        norms = self._stable_norms(loc, scale, A, B)
+        LP = norms.log_prob(value)
+        wts = t.log_softmax(k, dim=-1)
+        return t.logsumexp(LP + wts, dim=-1)
 
-    def rsample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
+        return self._gmm_from_params(params, d).sample().nan_to_num()
+
+    def rsample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
         raise NotImplementedError
 
     def rsample_all(self, params: Tensor):
         raise NotImplementedError
 
-    # TODO: remove if unneeded, left in for reference
-    # def _gmm_from_params(self, params: Tensor, d: Optional[int] = None
-    #                      ) -> t.distributions.MixtureSameFamily:
-    #     loc, scale, k = self._extract_params(params)
-    #     cat = t.distributions.Categorical(logits=k)
 
-    #     if d is None:  # [B, D, K]
-    #         A, B = self.A[None, ..., None], self.B[None, ..., None]
-    #     else:  # [B, 1, K]
-    #         A, B = self.A[d][None,...,None], self.B[d][None, ..., None]
-    #     A = A.expand(loc.shape).to(loc.device, loc.dtype)
-    #     B = B.expand(loc.shape).to(loc.device, loc.dtype)
-
-    #     norms = self._stable_norms(loc, scale, A, B)
-    #     return t.distributions.MixtureSameFamily(cat, norms)
-
-
-
-# class FixedMoG(MoG):
-#     """
 #     A _frozen_-weight mixture of Gaussians; that is, we freeze the mixture
 #     weights, do some training, select some new ones, do some more training etc.
 #     """
@@ -368,7 +398,7 @@ class MoST(SAN_Likelihood):
         sts = t.distributions.StudentT(1., loc, scale)
         return t.distributions.MixtureSameFamily(cat, sts).log_prob(value)
 
-    def sample(self, params: Tensor) -> Tensor:
+    def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         B = params.size(0)
         loc, scale, k = params.reshape(B, self.K, 3).tensor_split(3, 2)
         loc, scale = loc.squeeze(-1), squareplus_f(scale).squeeze(-1)
@@ -376,7 +406,7 @@ class MoST(SAN_Likelihood):
         sts = t.distributions.StudentT(1., loc, scale)
         return t.distributions.MixtureSameFamily(cat, sts).sample()
 
-    def rsample(self, _: Tensor) -> Tensor:
+    def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
         raise NotImplementedError()
 
 
@@ -634,12 +664,14 @@ class SAN(Model):
             # draw single sample from p(y_d | y_<d, x)
             params = self.block_heads[d][1](H)
 
-            # TODO: include parameter limits as part of params if provided
-
             if rsample:
-                y_d = self.likelihood.rsample(params)
+                y_d = self.likelihood.rsample(params, d)
             else:
-                y_d = self.likelihood.sample(params)
+                y_d = self.likelihood.sample(params, d)
+
+            # TODO: remove
+            # verifies that the samples are within the limits
+            # assert t.logical_and(y_d >= 0., y_d <= 1.).all(), "some sampled values are out of range!"
 
             ys = t.cat((ys, y_d), -1)
             self.last_params[:, d] = params  # type: ignore
@@ -668,7 +700,14 @@ class SAN(Model):
         start_e = self.attempt_checkpoint_recovery(ip)
         for e in range(start_e, self.epochs):
             for i, (x, y) in enumerate(train_loader):
+                # print(f'iter e: {e}/{range(self.epochs)}, i: {i}/{len(train_loader)}')
                 x, y = self.preprocess(x, y)
+
+                # if the SAN has limits, then filter the y values here:
+                if self.likelihood.supports_lim:
+                    mask = t.logical_and(y > self.likelihood.lower,
+                                         y < self.likelihood.upper)
+                    x, y = x[mask], y[mask]
 
                 # The following implicitly updates self.last_params, and
                 # returns y_hat (a sample from p(y | x))

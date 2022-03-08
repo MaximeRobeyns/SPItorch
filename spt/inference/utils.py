@@ -80,6 +80,7 @@ class TruncatedStandardNormal(Distribution):
                  validate_args: bool = None):
 
         self.a, self.b = broadcast_all(a, b)
+        self.a, self.b = self.a.detach(), self.b.detach()
         if isinstance(a, Number) and isinstance(b, Number):
             batch_shape = t.Size()
         else:
@@ -111,8 +112,7 @@ class TruncatedStandardNormal(Distribution):
 
     @constraints.dependent_property
     def support(self):
-        # Note: this is specific for use in a mixture distribution
-        return constraints.interval(self.a.min(-1)[0], self.b.max(-1)[0])
+        return constraints.interval(self.a, self.b)
 
     @property
     def mean(self) -> Tensor:
@@ -143,6 +143,9 @@ class TruncatedStandardNormal(Distribution):
         return CONST_SQRT_2 * (2 * x - 1).erfinv()
 
     def cdf(self, value):
+        # If value < lower bound, then return 0
+        # if value > upper bound, return 1
+
         if self._validate_args:
             self._validate_sample(value)
         return ((self._big_phi(value) - self._big_phi_a) / self._Z).clamp(0, 1)
@@ -151,6 +154,7 @@ class TruncatedStandardNormal(Distribution):
         return self._inv_big_phi(self._big_phi_a + value * self._Z)
 
     def log_prob(self, value):
+        # TODO: if value < lower bound or > upper bound, then return -inf?
         if self._validate_args:
             self._validate_sample(value)
         return CONST_LOG_INV_SQRT_2PI - self._log_Z - (value ** 2) * 0.5
@@ -163,7 +167,7 @@ class TruncatedStandardNormal(Distribution):
 
 
 class TruncatedNormal(TruncatedStandardNormal):
-    """The general truncated normal distribution.
+    """A truncated normal distribution, **for use in a mixture distribution(!)**
 
     Could also obtain this by using AffineTransform on TruncatedStandardNormal,
     although this is a little simpler and thus probably more efficient.
@@ -176,12 +180,45 @@ class TruncatedNormal(TruncatedStandardNormal):
 
     has_rsample = True
 
+    @constraints.dependent_property
+    def support(self):
+        # WARNING: this is specific to use in a mixture distribution
+        return constraints.interval(self.a[..., 0], self.b[..., 0])
+
+    # Here is an error.
+    # possible reasons:
+    # - for some reason, some other parameters are being interpreted as the ranges
+    # - wrong argument order?
+    # - some other corruption / modification in superclass
+
+    # if isinstance(self.a, Number) and isinstance(b, Number):
+    #     return constraints.interval(self.a, self.b)
+    # # Note: this is specific for use in a mixture distribution
+    # return constraints.interval(self.a.min(-1)[0], self.b.max(-1)[0])
+
+    # # return constraints.interval(self.a, self.b)
+    # return constraints.interval(self.a[:, 0], self.b[:, 0])
+    # # return constraints.interval(self.a, self.b)
+    # # # non-batched parameters:
+    # if isinstance(self.a, Number) and isinstance(b, Number):
+    #     return constraints.interval(self.a, self.b)
+    # # # Note: this is specific for use in a mixture distribution
+    # return constraints.interval(self.a.min(-1)[0], self.b.max(-1)[0])
+
+
     def __init__(self, loc, scale, a, b, validate_args=None):
         self.loc, self.scale, a, b = broadcast_all(loc, scale, a, b)
-        loc = loc.clamp(a, b)
+
+        # loc = loc.clamp(a, b)
+        # TODO write unit tests to verify that all this behaviour is as expected...
         a = (a - self.loc) / self.scale
         b = (b - self.loc) / self.scale
-        super(TruncatedNormal, self).__init__(a, b, validate_args=validate_args)
+
+        # TODO: unnecessary
+        aa = t.where(a > b, b, a)
+        bb = t.where(a > b, a, b)
+
+        super(TruncatedNormal, self).__init__(aa, bb, validate_args=validate_args)
         self._log_scale = self.scale.log()
         self._mean = self._mean * self.scale + self.loc
         self._variance = self._variance * self.scale ** 2
