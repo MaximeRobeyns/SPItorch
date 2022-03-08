@@ -242,7 +242,8 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
     """
 
     def __init__(self, lims: Tensor, K: int, mult_eps: float = 1e-4,
-                 abs_eps: float = 1e-4, validate_args: bool = True):
+                 abs_eps: float = 1e-4, trunc_eps: float = 1e-3,
+                 validate_args: bool = True):
         """Truncated mixture of Gaussians. We work with tensors of size
         [B, D, K], for B a (possibly multi-dimensional) batch shape, D the
         number of dimensions in the mixture, and K the number of mixture
@@ -254,6 +255,7 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
         """
         self.K = K
         self.mult_eps, self.abs_eps = mult_eps, abs_eps
+        self.trunc_eps = trunc_eps
         assert lims.shape[-1] == 2, "Expected a tensor of [min, max] as lims"
         self._lower, self._upper = lims[:, 0].detach(), lims[:, 1].detach()
         self._val_args = validate_args
@@ -292,8 +294,8 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
 
     def _stable_norms(self, loc: Tensor, scale: Tensor, A: Tensor, B: Tensor
                       ) -> TruncatedNormal:
-        # TODO clamp loc here?
-        loc = loc.clamp(A, B)
+        # for numerical stability, don't get too close to the edge!
+        loc = loc.clamp(A + self.trunc_eps, B - self.trunc_eps)
         try:
             return TruncatedNormal(loc, scale, A, B, self._val_args)
         except ValueError:  # constraint violation
@@ -302,7 +304,6 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
 
     def _gmm_from_params(self, params: Tensor, d: Optional[int] = None) -> MixtureSameFamily:
         loc, scale, k = self._extract_params(params)
-        assert not k.isnan().all(), "there are nan values"
         cat = t.distributions.Categorical(logits=k)
 
         if d is None:  # [B, D, n_params]
@@ -669,6 +670,8 @@ class SAN(Model):
             else:
                 y_d = self.likelihood.sample(params, d)
 
+            assert not y_d.isnan().all(), "NaN values returned from likelihood."
+
             # TODO: remove
             # verifies that the samples are within the limits
             # assert t.logical_and(y_d >= 0., y_d <= 1.).all(), "some sampled values are out of range!"
@@ -704,9 +707,14 @@ class SAN(Model):
                 x, y = self.preprocess(x, y)
 
                 # if the SAN has limits, then filter the y values here:
+                #
+                # TODO: Perhaps we need to filter out vlaues which are merely
+                # close to the edges for better numerical stability?
+                # We could define some eps term; thus y > self.likelihood.lower + eps...
+                #
                 if self.likelihood.supports_lim:
                     mask = t.logical_and(y > self.likelihood.lower,
-                                         y < self.likelihood.upper)
+                                         y < self.likelihood.upper).all(-1)
                     x, y = x[mask], y[mask]
 
                 # The following implicitly updates self.last_params, and
