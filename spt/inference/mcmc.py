@@ -124,61 +124,59 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
     return samples
 
 
-def HMC(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
+def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
         rho: float = 1e-2, L: int = 10) -> Generator[Tensor, None, None]:
     """
     A simple Hamiltonian Monte Carlo implementation.
 
     Args:
-        logpdf: log probability density function
+        f: log probability density function / a function to be _maximised_
         initial_pos: where to initialise the chains
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
-
-    TODO: implement more sophisticated learning rate schedule (e.g. Adam), and
-    samplers (e.g. NUTS).
     """
     size = initial_pos.shape
     device, dtype = initial_pos.device, initial_pos.dtype
     pos = initial_pos
-    log_prob = logpdf(pos)
-    logpxl = None
+
+    def dfd(x: Tensor) -> Tensor:
+        tmpx = x.detach().requires_grad_(True)
+        f(tmpx).backward(t.ones(x.shape[0], device=x.device, dtype=x.dtype))
+        return -tmpx.grad
+
+    def K(u: Tensor) -> Tensor:
+        return -t.distributions.Normal(0, 1).log_prob(u).sum(-1)
+
+    def U(x: Tensor) -> Tensor:
+        return -f(x)
 
     while True:
-        momentum = t.randn(size).to(device, dtype)
-        xl = pos.clone().detach().requires_grad_(True)
-        logpdf(xl).backward(t.ones(size[0], device=device, dtype=dtype))
-        ul = momentum * rho * xl.grad / 2
+        xl = pos.clone()
+        u = t.randn(size).to(device, dtype)
 
-        for l in range(L):
-            rho_l = rho if l < L-1 else rho / 2
-            xl = xl + rho_l * ul
-            xl = xl.detach().requires_grad_(True)
-            logpxl = logpdf(xl)
-            logpxl.backward(t.ones(size[0], device=device, dtype=dtype))
-            ul = ul + rho_l * xl.grad
+        for i in range(L):
+            up = u - (rho / 2) * dfd(xl)
+            xl = xl + rho * up
+            up = up - (rho / 2) * dfd(xl)
 
-        log_uniform = t.rand(size[0]).log().to(device, dtype)
-        ul1, ul2 = ul.unsqueeze(-1), ul.unsqueeze(-2)
-        m1, m2 = momentum.unsqueeze(-1), momentum.unsqueeze(-2)
-        A = logpxl - log_prob - (t.bmm(ul2, ul1).squeeze() - t.bmm(m2, m1).squeeze())/2
-        A = t.where(A > 0, t.zeros_like(A), A)
-        accept = log_uniform < A
+        H_prop = K(up) + U(xl)
+        H_curr = K(u) + U(pos)
+        alpha = t.exp(-H_prop + H_curr)
+        accept = t.rand(size[0]).to(device, dtype) < alpha
 
         pos = t.where(accept.unsqueeze(-1), xl, pos)
-        log_prob = t.where(accept, logpxl, log_prob)
         yield pos
 
 
-def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
+def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
+                chains: int = 100000, burn: int = 1000,
                 burn_chains: int = None, initial_pos: Tensor = None,
                 dim: int = 1, rho: float = 1e-2, L: int = 10,
-                device: t.device = None, dtype: t.dtype = None
-                 ) -> Tensor:
+                device: t.device = None, dtype: t.dtype = None) -> Tensor:
     """Hamiltonian Monte Carlo sampler
 
     Args:
-        logpdf: log probability density function
+        f: log probability density function / function to maximise
         N: the number of samples to return _per chain_
         chains: the number of chains to run concurrently during sampling
         burn: the number of 'burn-in' steps.
@@ -208,7 +206,7 @@ def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
             t.randn((chains, dim), device=device, dtype=dtype)
 
         # burn in phase
-        burn_sampler = HMC(logpdf, pos, rho, L)
+        burn_sampler = HMC(f, pos, rho, L)
         for (tmp, b) in zip(burn_sampler, range(burn)):
             lb = (b*burn_chains)%chains
             ub = min(((b+1)*burn_chains)%chains, chains)
@@ -217,7 +215,7 @@ def HMC_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
                 prog.update(burn_t, advance=10)
 
         # sampling phase
-        sampler = HMC(logpdf, init, rho, L)
+        sampler = HMC(f, init, rho, L)
         sample_t = prog.add_task("Sampling...", total=N)
         for (pos, i) in zip(sampler, range(N)):
             samples[i] = pos.unsqueeze(0)

@@ -333,44 +333,34 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
         return self._gmm_from_params(params, d).sample().nan_to_num()
 
     def rsample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
-        raise NotImplementedError
+        """rsample, implicitly holding the mixture weights frozen for 1 MC
+        estimate"""
+
+        loc, scale, k = self._extract_params(params)
+        gather_dim = len(loc.shape) - 1
+        es = t.Size()
+
+        mix_sample = t.distributions.Categorical(logits=k).sample()
+        mix_shape = mix_sample.shape
+
+        if d is None:  # [B, D, n_params]
+            A, B = self._lower[None, ..., None], self._upper[None, ..., None]
+        else:  # [B, 1, K]
+            A, B = self._lower[d][None, ..., None], self._upper[d][None, ..., None]
+        A = A.expand(loc.shape).to(loc.device, loc.dtype)
+        B = B.expand(loc.shape).to(loc.device, loc.dtype)
+        comp_samples = self._stable_norms(loc, scale, A, B).rsample().nan_to_num()
+
+        # gather along the kth dimension
+        mix_sample_r = mix_sample.reshape(
+            mix_shape + t.Size([1] * (len(es) + 1)))
+        mix_sample_r = mix_sample_r.repeat(
+            t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
+        samples = t.gather(comp_samples, gather_dim, mix_sample_r)
+        return samples.squeeze(gather_dim)
 
     def rsample_all(self, params: Tensor):
         raise NotImplementedError
-
-
-#     A _frozen_-weight mixture of Gaussians; that is, we freeze the mixture
-#     weights, do some training, select some new ones, do some more training etc.
-#     """
-#
-#     def n_params(self) -> int:
-#         return 2 * self.K  # loc, scale
-#
-#     def _extract_params(self, params: Tensor) -> tuple[Tensor, Tensor]:
-#         B = params.size(0)  # batch size
-#         loc, scale = params.reshape(B, -1, self.K, 2).tensor_split(2, 2)
-#         return loc.squeeze(-1), squareplus_f(scale).squeeze(-1)
-#
-#     def _dist_from_params(self, params: Tensor) -> t.distributions.Normal:
-#         loc, scale = self._extract_params(params)
-#         return self._stable_norms(loc, scale)
-#
-#     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
-#         return self._dist_from_params(params).log_prob(value).mean(-1)
-#
-#     def sample(self, params: Tensor) -> Tensor:
-#         # normal GMM sampling, with even logits
-#
-#     def rsample(self, params: Tensor) -> Tensor:
-#         """Draw reparametrised samples.
-#
-#         This should only ever be for 1 dimension at a time. To pass in the full
-#         set of parameters and draw samples that way is incorrect; since later
-#         parameters must depend on previous ones.
-#
-#         A true sample from the SAN is a forward pass. There is no other way to
-#         draw a sample.
-#         """
 
 
 class MoST(SAN_Likelihood):
@@ -412,7 +402,9 @@ class MoST(SAN_Likelihood):
 
 
 class ACFLikelihood(SAN_Likelihood):
-    """A likelihood which is based on a normalising flow"""
+    """A likelihood which is based on a normalising flow (affine coupling layer(s)
+    used instead of mixture distribution in SAN).
+    """
 
     def name(self) -> str:
         return "Affine Coupling Flow"
@@ -711,8 +703,8 @@ class SAN(Model):
                 # TODO: Perhaps we need to filter out vlaues which are merely
                 # close to the edges for better numerical stability?
                 # We could define some eps term; thus y > self.likelihood.lower + eps...
-                #
-                if self.likelihood.supports_lim:
+
+                if isinstance(self.likelihood, TruncatedLikelihood):
                     mask = t.logical_and(y > self.likelihood.lower,
                                          y < self.likelihood.upper).all(-1)
                     x, y = x[mask], y[mask]
