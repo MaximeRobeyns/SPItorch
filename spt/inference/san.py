@@ -202,27 +202,27 @@ class MoG(SAN_Likelihood):
         return self._gmm_from_params(params).sample()
 
     def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
-        raise NotImplementedError
-        # sample_shape = t.Size()
-        # loc, scale, k = self._extract_params(params)
-        # gather_dim = len(loc.shape) - 1
-        # es = t.Size([])
+        # raise NotImplementedError
+        sample_shape = t.Size()
+        loc, scale, k = self._extract_params(params)
+        gather_dim = len(loc.shape) - 1
+        es = t.Size([])
 
-        # # mix_sample = t.distributions.Categorical(logits=k).sample()
-        # # Rather than re-sampling the mixture components, we freeze them.
+        mix_sample = t.distributions.Categorical(logits=k).sample()
+        # Rather than re-sampling the mixture components, we freeze them.
         # mix_sample = kwargs['mix_sample']
-        # mix_shape = mix_sample.shape
+        mix_shape = mix_sample.shape
 
-        # comp_samples = self._stable_norms(loc, scale).rsample(sample_shape)
+        comp_samples = self._stable_norms(loc, scale).rsample(sample_shape)
 
-        # # gather along the k dimension
-        # mix_sample_r = mix_sample.reshape(
-        #     mix_shape + t.Size([1] * (len(es) + 1)))
-        # mix_sample_r = mix_sample_r.repeat(
-        #     t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
+        # gather along the k dimension
+        mix_sample_r = mix_sample.reshape(
+            mix_shape + t.Size([1] * (len(es) + 1)))
+        mix_sample_r = mix_sample_r.repeat(
+            t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
 
-        # samples = t.gather(comp_samples, gather_dim, mix_sample_r)
-        # return samples.squeeze(gather_dim)
+        samples = t.gather(comp_samples, gather_dim, mix_sample_r)
+        return samples.squeeze(gather_dim)
 
     def rsample_all(self, params: Tensor) -> Tensor:
         """Returns output K times the size of the input"""
@@ -736,6 +736,33 @@ class SAN(Model):
         # features) work as expected.
         self.eval()
 
+    def _preprocess_sample_input(self, x: tensor_like, n_samples: int = 1000,
+                                 errs: Optional[tensor_like] = None) -> Tensor:
+
+        if isinstance(x, np.ndarray):
+            x = t.from_numpy(x)
+
+        if not isinstance(x, t.Tensor):
+            raise ValueError((
+                f'Please provide a PyTorch Tensor (or numpy array) as input '
+                f'(got {type(x)})'))
+
+        x = x.unsqueeze(0) if x.dim() == 1 else x
+        assert x.dim() == 2, "Please 'flatten' your batch of points to be 2 dimensional"
+        x, _ = self.preprocess(x, t.empty(x.shape))
+        n, d = x.shape
+
+        if errs is not None:
+            if isinstance(errs, np.ndarray):
+                errs = t.from_numpy(errs)
+            errs = errs.unsqueeze(0) if errs.dim() == 1 else errs
+            x = t.distributions.Normal(x, errs).sample((n_samples,)).reshape(-1, d)
+        else:
+            x = x.repeat_interleave(n_samples, 0)
+
+        assert x.shape == (n * n_samples, d)
+        return x
+
     @typing.no_type_check
     def sample(self, x_in: tensor_like, n_samples: int = 1000,
                rsample: bool = False, errs: Optional[tensor_like] = None
@@ -748,43 +775,44 @@ class SAN(Model):
             n_samples: the number of samples to draw
             rsample: whether to use reparametrised sampling (default False)
             errs: observation uncertainty in x (optional; only for 'real' observations)
-            kwargs: any additional model-specific arguments
 
         Returns:
             Tensor: a tensor of shape [n_samples, data_dim]
         """
+        x = self._preprocess_sample_input(x_in, n_samples, errs)
+        return self(x, rsample)
 
-        # if self.training:
-        #     logging.warning('Model is still in training mode during sampling! '
-        #                     'This is likely to give you unexpected results.')
+    def mode(self, x_in: tensor_like, n_samples: int = 1000,
+             rsample: bool = False, errs: Optional[tensor_like] = None
+             ) -> Tensor:
+        """A method which returns the highest posterior mode for a given batch
+        of photometric observations, x_in
 
-        if isinstance(x_in, np.ndarray):
-            x_in = t.from_numpy(x_in)
+        Args:
+            x_in: the conditioning data
+            n_samples: the number of samples to draw when searching for the mode
+            rsample: whether to use reparametrised sampling (default False)
+            errs: observation uncertainty in x (optional; only use for 'real' observations)
 
-        if not isinstance(x_in, t.Tensor):
-            raise ValueError((
-                f'Please provide a PyTorch Tensor (or numpy array) to sample '
-                f'(got {type(x_in)})'))
+        Returns:
+            Tensor: a tensor of modes [data_dim]
+        """
+        N = n_samples
+        x = self._preprocess_sample_input(x_in, n_samples, errs)
+        B = int(x.size(0) / N)
 
-        x, _ = self.preprocess(x_in, t.empty(x_in.shape))
+        samples = self(x, rsample)  # [B*N, data_dim]
+        rsamples = samples.reshape(B, n_samples, self.data_dim)  # [B, N, data_dim]
 
-        x = x.unsqueeze(0) if x.dim() == 1 else x
-        assert x.dim() == 2, ""
-        n, d = x.shape
+        assert self.last_params is not None
+        lps = self.likelihood.log_prob(samples, self.last_params).sum(-1)  #[B*N]
+        rlps = lps.reshape(B, N)  # [B, N]
 
-        if errs is not None:
-            if isinstance(errs, np.ndarray):
-                errs = t.from_numpy(errs)
-            errs = errs.unsqueeze(0) if errs.dim() == 1 else errs
-            x = t.distributions.Normal(x, errs).sample((n_samples,)).reshape(-1, d)
-        else:
-            x = x.repeat_interleave(n_samples, 0)
+        # [B, 1, data_dim]:
+        idxs = t.argmax(rlps, dim=1)[:, None, None].expand(B, 1, self.data_dim)
+        modes = rsamples.gather(1, idxs).squeeze(1)  # [B, data_dim]
 
-        assert x.shape == (n * n_samples, d)
-
-        samples = self.forward(x, rsample)
-
-        return samples
+        return modes
 
 
 if __name__ == '__main__':

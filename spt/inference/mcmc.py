@@ -26,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from abc import abstractmethod
-from typing import Any, Callable, Generator, Optional, Type
+from typing import Any, Callable, Generator, Optional, Tuple, Type
 from torch.utils.data import DataLoader
 from rich.progress import Progress
 
@@ -172,7 +172,8 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
                 chains: int = 100000, burn: int = 1000,
                 burn_chains: int = None, initial_pos: Tensor = None,
                 dim: int = 1, rho: float = 1e-2, L: int = 10,
-                device: t.device = None, dtype: t.dtype = None) -> Tensor:
+                find_max: bool = False, device: t.device = None,
+                dtype: t.dtype = None) -> Tuple[Tensor, Optional[Tensor]]:
     """Hamiltonian Monte Carlo sampler
 
     Args:
@@ -186,6 +187,8 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
         dim: number of dimensions for samples / the target distribution
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
+        find_max: whether to additionally return the sampled position with the
+            maximum f value.
 
     Returns: a tensor of shape [N, chains, dim], for `dim` the number of
         dimensions per sample.
@@ -196,6 +199,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
         burn_chains = chains
 
     samples = t.empty((N, chains, dim), device=device, dtype=dtype)
+    max_pos, prev_obj = None, None
 
     with Progress() as prog:
         burn_t = prog.add_task("Burning-in...", total=burn)
@@ -219,9 +223,20 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
         sample_t = prog.add_task("Sampling...", total=N)
         for (pos, i) in zip(sampler, range(N)):
             samples[i] = pos.unsqueeze(0)
+
+            if find_max:
+                pos = pos.reshape(-1, dim)
+                with t.no_grad():
+                    obj = f(pos)
+                    idx = t.argmax(obj, dim=-1)
+                if max_pos is None:
+                    max_pos, prev_obj = pos[idx], obj[idx]
+                    continue
+                max_pos = t.where(obj[idx] > prev_obj, pos[idx], max_pos)
+
             if i % 10 == 0:
                 prog.update(sample_t, advance=10)
 
     duration = time.time() - start
     logging.info(f'Completed {N * chains:,} samples in {duration:.2f} seconds')
-    return samples
+    return samples, max_pos

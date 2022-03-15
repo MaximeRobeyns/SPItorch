@@ -90,11 +90,11 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 class SamplingParams(ConfigClass):
 
     # n_samples: int = int(50e6)
-    n_samples: int = int(10e4)
-    concurrency: int = 12
+    n_samples: int = int(10e6)
+    concurrency: int = 10
     observation: bool = False  # use real observation as obs... should have no effect
     # save_dir: str = './data/dsets/dev/'
-    save_dir: str = './data/dsets/testing/'
+    save_dir: str = './data/dsets/dev2/'
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
@@ -116,7 +116,7 @@ class InferenceParams(inference.InferenceParams):
     # Filepath to hdf5 file or directory of files to use as offline dataset
     # dataset_loc: str = SamplingParams().save_dir
     dataset_loc: str = './data/dsets/dev/photometry_sim_10000000.h5'
-    # dataset_loc: str = './data/dsets/dev/'
+    # dataset_loc: str = './data/dsets/dev2/...'
 
     # Force re-train an existing model
     retrain_model: bool = False
