@@ -18,6 +18,7 @@
 Implements some very simple MCMC samplers.
 """
 
+import math
 import time
 import logging
 import numpy as np
@@ -26,7 +27,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from abc import abstractmethod
-from typing import Any, Callable, Generator, Optional, Tuple, Type
+from typing import Any, Callable, Generator, Optional, Tuple, Type, Union
 from torch.utils.data import DataLoader
 from rich.progress import Progress
 
@@ -67,14 +68,16 @@ def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
         yield pos
 
 
-def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
+def RWMH_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
+                 chains: int = 100000, burn: int = 1000,
                  burn_chains: int = None, initial_pos: Tensor = None,
-                 dim: int = 1, sigma: float = 0.1, device: t.device = None,
-                 dtype: t.dtype = None) -> Tensor:
+                 dim: int = 1, sigma: float = 0.1, find_max: bool = False,
+                 device: t.device = None, dtype: t.dtype = None
+                 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
     """Random walk Metropolis Hasings sampler
 
     Args:
-        logpdf: log probability density function
+        f: log probability density function / function to maximise
         N: the number of samples to return _per chain_
         chains: the number of chains to run concurrently during sampling
         burn: the number of 'burn-in' steps.
@@ -84,8 +87,10 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
         dim: number of dimensions for samples / the target distribution
         sigma: variance of Gaussian random step size
 
-    Returns: a tensor of shape [N, chains, dim], for `dim` the number of
-        dimensions per sample.
+    Returns: either
+        - a tensor of shape [N, chains, dim], for `dim` the number of dimensions
+        per sample, if find_max == False
+        - a tuple of samples, and max points
     """
     logging.info('Beginning RWMH sampling')
     start = time.time()
@@ -93,6 +98,7 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
         burn_chains = chains
 
     samples = t.empty((N, chains, dim), device=device, dtype=dtype)
+    max_pos, prev_obj = None, None
 
     with Progress() as prog:
         burn_t = prog.add_task("Burning-in...", total = burn)
@@ -103,7 +109,7 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
             t.randn((chains, dim), device=device, dtype=dtype)
 
         # burn in phase
-        burn_sampler = RWMH(logpdf, pos, sigma)
+        burn_sampler = RWMH(f, pos, sigma)
         for (tmp, b) in zip(burn_sampler, range(burn)):
             lb = (b*burn_chains)%chains
             ub = min(((b+1)*burn_chains)%chains, chains)
@@ -112,20 +118,33 @@ def RWMH_sampler(logpdf, N: int = 1000, chains: int = 100000, burn: int = 1000,
                 prog.update(burn_t, advance=10)
 
         # sampling phase
-        sampler = RWMH(logpdf, init)
+        sampler = RWMH(f, init, sigma)
         sample_t = prog.add_task("Sampling...", total=N)
         for (pos, i) in zip(sampler, range(N)):
             samples[i] = pos.unsqueeze(0)
+
+            if find_max:
+                pos = pos.reshape(-1, dim)
+                obj = f(pos)
+                idx = t.argmax(obj, dim=-1)
+            if max_pos is None:
+                max_pos, prev_obj = pos[idx], obj[idx]
+                continue
+            max_pos = t.where(obj[idx] > prev_obj, pos[idx], max_pos)
+
             if i % 10 == 0:
                 prog.update(sample_t, advance=10)
 
     duration = time.time() - start
     logging.info(f'Completed {N * chains:,} samples in {duration:.2f} seconds')
+    if find_max:
+        return samples, max_pos
     return samples
 
 
 def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
-        rho: float = 1e-2, L: int = 10) -> Generator[Tensor, None, None]:
+        rho: float = 1e-2, L: int = 10, alpha: float = 1.1
+        ) -> Generator[Tensor, None, None]:
     """
     A simple Hamiltonian Monte Carlo implementation.
 
@@ -134,37 +153,45 @@ def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
         initial_pos: where to initialise the chains
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
+        alpha: momentum tempering term
+
     """
     size = initial_pos.shape
     device, dtype = initial_pos.device, initial_pos.dtype
     pos = initial_pos
+
+    l2 = math.floor(L/2.)
+    salpha = t.ones(size).to(device, dtype) * math.sqrt(alpha)
+    talpha = t.ones(size).to(device, dtype) * alpha
 
     def dfd(x: Tensor) -> Tensor:
         tmpx = x.detach().requires_grad_(True)
         f(tmpx).backward(t.ones(x.shape[0], device=x.device, dtype=x.dtype))
         return -tmpx.grad
 
-    def K(u: Tensor) -> Tensor:
+    def K(u: Tensor) -> Tensor:  # kinetic energy
         return -t.distributions.Normal(0, 1).log_prob(u).sum(-1)
 
-    def U(x: Tensor) -> Tensor:
+    def U(x: Tensor) -> Tensor:  # potential
         return -f(x)
 
     while True:
         xl = pos.clone()
         u = t.randn(size).to(device, dtype)
 
+        u *= salpha
         for i in range(L):
             up = u - (rho / 2) * dfd(xl)
             xl = xl + rho * up
             up = up - (rho / 2) * dfd(xl)
+            up = up * talpha if i < l2 else up / talpha
 
         H_prop = K(up) + U(xl)
         H_curr = K(u) + U(pos)
-        alpha = t.exp(-H_prop + H_curr)
-        accept = t.rand(size[0]).to(device, dtype) < alpha
-
+        A = t.exp(-H_prop + H_curr)
+        accept = t.rand(size[0]).to(device, dtype) < A
         pos = t.where(accept.unsqueeze(-1), xl, pos)
+
         yield pos
 
 
@@ -172,8 +199,9 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
                 chains: int = 100000, burn: int = 1000,
                 burn_chains: int = None, initial_pos: Tensor = None,
                 dim: int = 1, rho: float = 1e-2, L: int = 10,
-                find_max: bool = False, device: t.device = None,
-                dtype: t.dtype = None) -> Tuple[Tensor, Optional[Tensor]]:
+                alpha: float = 1.1, find_max: bool = False,
+                device: t.device = None, dtype: t.dtype = None
+                ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
     """Hamiltonian Monte Carlo sampler
 
     Args:
@@ -187,6 +215,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
         dim: number of dimensions for samples / the target distribution
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
+        alpha: momentum tempering term
         find_max: whether to additionally return the sampled position with the
             maximum f value.
 
@@ -210,7 +239,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
             t.randn((chains, dim), device=device, dtype=dtype)
 
         # burn in phase
-        burn_sampler = HMC(f, pos, rho, L)
+        burn_sampler = HMC(f, pos, rho, L, alpha)
         for (tmp, b) in zip(burn_sampler, range(burn)):
             lb = (b*burn_chains)%chains
             ub = min(((b+1)*burn_chains)%chains, chains)
@@ -219,7 +248,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
                 prog.update(burn_t, advance=10)
 
         # sampling phase
-        sampler = HMC(f, init, rho, L)
+        sampler = HMC(f, init, rho, L, alpha)
         sample_t = prog.add_task("Sampling...", total=N)
         for (pos, i) in zip(sampler, range(N)):
             samples[i] = pos.unsqueeze(0)
@@ -239,4 +268,6 @@ def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
 
     duration = time.time() - start
     logging.info(f'Completed {N * chains:,} samples in {duration:.2f} seconds')
-    return samples, max_pos
+    if find_max:
+        return samples, max_pos
+    return samples

@@ -151,6 +151,8 @@ class Prospector:
         logging.info(f'Done.')
         logging.debug(f'Created sps: {self.sps}')
 
+        self.mp = mp
+
         # output from fit_model. Contains 'optimization' and 'sampling' keys.
         self.fit_output = None
 
@@ -181,6 +183,12 @@ class Prospector:
         c.print(f'Filters:\n{[f.name for f in self.obs["filters"]]}')
         c.rule()
         return c.end_capture()
+
+    def set_new_obs(self, obs: pd.Series) -> None:
+        """Allows us to re-use this prospector instance with a new observation
+        """
+        self.index = int(obs.idx) if 'idx' in obs else -1
+        self.obs = self.mp.build_obs_fn(self.mp.filters, obs)
 
     def _fake_obs_warning(self, method: str = 'prospector method'):
             logging.warning((
