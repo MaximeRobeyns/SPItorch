@@ -185,27 +185,6 @@ class TruncatedNormal(TruncatedStandardNormal):
         # WARNING: this is specific to use in a mixture distribution
         return constraints.interval(self.a[..., 0], self.b[..., 0])
 
-    # Here is an error.
-    # possible reasons:
-    # - for some reason, some other parameters are being interpreted as the ranges
-    # - wrong argument order?
-    # - some other corruption / modification in superclass
-
-    # if isinstance(self.a, Number) and isinstance(b, Number):
-    #     return constraints.interval(self.a, self.b)
-    # # Note: this is specific for use in a mixture distribution
-    # return constraints.interval(self.a.min(-1)[0], self.b.max(-1)[0])
-
-    # # return constraints.interval(self.a, self.b)
-    # return constraints.interval(self.a[:, 0], self.b[:, 0])
-    # # return constraints.interval(self.a, self.b)
-    # # # non-batched parameters:
-    # if isinstance(self.a, Number) and isinstance(b, Number):
-    #     return constraints.interval(self.a, self.b)
-    # # # Note: this is specific for use in a mixture distribution
-    # return constraints.interval(self.a.min(-1)[0], self.b.max(-1)[0])
-
-
     def __init__(self, loc, scale, a, b, validate_args=None):
         self.loc, self.scale, a, b = broadcast_all(loc, scale, a, b)
 
@@ -238,11 +217,3 @@ class TruncatedNormal(TruncatedStandardNormal):
 
     def log_prob(self, value):
         return super(TruncatedNormal, self).log_prob(self._to_std_rv(value)) - self._log_scale
-
-
-# class TruncatedNormall(TransformedDistribution):
-#
-#     def __init__(self, loc, scale, a, b, validate_args=None):
-#         base = TruncatedStandardNormal(a, b, validate_args=validate_args)
-#         tr = [AffineTransform(loc=loc, scale=scale)]
-#         super(TruncatedNormal, self).__init__(base, tr, validate_args=validate_args)

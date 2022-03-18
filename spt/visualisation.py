@@ -34,10 +34,14 @@ from spt.modelling.builders import obs_dict_t
 colours = {
     "b": "#025159",  # blue(ish)
     "o": "#F28705",  # orange
-    "lb": "#03A696", # light blue
+    "lb": "#03A696", # light    blue
     "do": "#F25D27", # dark orange
     "r": "#F20505"   # red.
 }
+
+# ccolours = ["#1d1c4b", "#0bbef6", "#f55071", "#b09ed9"]
+# ccolours = ["#eb0f0f", "#0cc3ff", "#fdd43a", "#281d1a"]
+ccolours = ["#003f5c", "#ffa600", "#7a5195", "#ef5675"]
 
 
 # Utility functions -----------------------------------------------------------
@@ -252,7 +256,7 @@ def visualise_model(model: SedModel, sps: SSPBasis,
         xbounds = (min(xbounds[0], tmpx[0]), max(xbounds[1], tmpx[1]))
         ybounds = (min(ybounds[0], tmpy[0]), max(ybounds[1], tmpy[1]))
 
-        c = list(colours.values())[i%len(colours)]
+        c = ccolours[i%len(ccolours)]
         label = "" if l == "" else f' ({l})'
 
         ax.loglog(wspec, spec, label=f'Model spectrum{label}', lw=0.7,
@@ -397,5 +401,39 @@ def plot_posteriors(posterior_ys: np.ndarray, true_ys: np.ndarray,
              fontweight='demibold', fontsize=25)
     fig.text(0.05, 1.005, s=description, fontfamily='sans-serif',
              fontweight='normal', fontsize=14)
+    fig.patch.set_facecolor('white')
+    fig.tight_layout()
+
+
+def ppplot(xs: np.ndarray, ys: np.ndarray,
+           labels: list[str] = ForwardModelParams().ordered_free_params,
+           title: str = "", description: str = "", base_size: int = 8):
+    """Create a probability-probability (p-p) plot of two (perhaps empirical)
+    cumulative distributions.
+
+    Args:
+        xs: an [N, D] array of points, where the empirical CDF of each dimension
+            D will be calculated and plotted on the x axis.
+        ys: an [N, D] array of points, where the empirical CDF of each dimension
+            D will be calculated and plotted on the y axis.
+        labels: a list of labels for each dimension [D]
+    """
+    assert xs.shape == ys.shape
+
+    fig, ax = plt.subplots(figsize=(base_size, base_size), dpi=150)
+    diag = np.linspace(0, 1, 100)
+    ax.plot(diag, diag, ls='--', c='k', label='diag')
+    for i in range(xs.shape[1]):
+        xi, yi = xs[:, i], ys[:, i]
+        x_ecdf = np.sort(xi) - min(xi) / max(xi) - min(xi)
+        y_ecdf = np.sort(yi) - min(yi) / max(yi) - min(yi)
+        ax.plot(x_ecdf, y_ecdf, label=labels[i])
+    ax.set_xlim(0., 1.)
+    ax.set_ylim(0., 1.)
+    ax.legend()
+    fig.text(0.05, 1.04, s=title, fontfamily='sans-serif',
+             fontweight='demibold', fontsize=16)
+    fig.text(0.05, 1.005, s=description, fontfamily='sans-serif',
+             fontweight='normal', fontsize=10)
     fig.patch.set_facecolor('white')
     fig.tight_layout()
