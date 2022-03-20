@@ -68,54 +68,67 @@ def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
         yield pos
 
 
-def RWMH_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
-                 chains: int = 100000, burn: int = 1000,
-                 burn_chains: int = None, initial_pos: Tensor = None,
-                 dim: int = 1, sigma: float = 0.1, find_max: bool = False,
+def RWMH_sampler(f: Callable[[Tensor], Tensor],
+                 N: int = 1000, B: int = 1, chains: int = 100000, dim: int = 1,
+                 initial_pos: Tensor = None,
+                 burn: int = 1000, burn_chains: int = None,
+                 sigma: float = 0.1, find_max: bool = False,
+                 logging_freq: int = 10,
                  device: t.device = None, dtype: t.dtype = None
                  ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+    # WARNING: this sampler is incorrect
+    # TODO: create an abstract MCMC sampler (using HMC_sampler as reference)
     """Random walk Metropolis Hasings sampler
 
     Args:
         f: log probability density function / function to maximise
         N: the number of samples to return _per chain_
+        B: the batch shape
         chains: the number of chains to run concurrently during sampling
+        dim: number of dimensions for samples / the target distribution
+        initial_pos: optional tensor of starting positions, size [B, chains, dim]
         burn: the number of 'burn-in' steps.
         burn_chains: the number of chains to use while burning in. Defaults to
             `chains`.
-        initial_pos: optional tensor of starting positions, size [chains, dim]
-        dim: number of dimensions for samples / the target distribution
         sigma: variance of Gaussian random step size
 
     Returns: either
-        - a tensor of shape [N, chains, dim], for `dim` the number of dimensions
-        per sample, if find_max == False
-        - a tuple of samples, and max points
+        - a tensor of shape [N, B, chains, dim] if find_max is False, else
+          additionally a tensor of shape [B, dim] with the maximum for each
+          batch.
     """
     logging.info('Beginning RWMH sampling')
     start = time.time()
+
+    init = initial_pos
+    assert N is not None, "number of samples to draw omitted"
+    if initial_pos is None:
+        assert B is not None, "batch size omitted"
+        assert chains is not None, "number of chains omitted"
+        assert dim is not None, "number of dimensions omitted"
+        init = t.randn((B, chains, dim), device=device, dtype=dtype)
+    else:
+        B, chains, dim = initial_pos.shape
+    assert init is not None
+
     if burn_chains is None:
         burn_chains = chains
 
-    samples = t.empty((N, chains, dim), device=device, dtype=dtype)
+    samples = t.empty((N, B, chains, dim), device=device, dtype=dtype)
     max_pos, prev_obj = None, None
 
     with Progress() as prog:
         burn_t = prog.add_task("Burning-in...", total = burn)
 
-        pos = t.randn((burn_chains, dim), device=device, dtype=dtype)
-        # used as a circular buffer
-        init = initial_pos if initial_pos is not None else \
-            t.randn((chains, dim), device=device, dtype=dtype)
-
         # burn in phase
+        pos = init.clone()
         burn_sampler = RWMH(f, pos, sigma)
         for (tmp, b) in zip(burn_sampler, range(burn)):
-            lb = (b*burn_chains)%chains
-            ub = min(((b+1)*burn_chains)%chains, chains)
+            lb = (b * burn_chains) % chains
+            ub = min(((b + 1) * burn_chains) % chains, chains)
             init[lb:ub] = tmp[:ub-lb]
-            if b % 10 == 0:
-                prog.update(burn_t, advance=10)
+            if b % logging_freq == 0:
+                prog.update(burn_t, advance=logging_freq)
 
         # sampling phase
         sampler = RWMH(f, init, sigma)
@@ -124,22 +137,22 @@ def RWMH_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
             samples[i] = pos.unsqueeze(0)
 
             if find_max:
-                pos = pos.reshape(-1, dim)
+                pos = pos.reshape(B, -1, dim)
                 obj = f(pos)
-                idx = t.argmax(obj, dim=-1)
-            if max_pos is None:
-                max_pos, prev_obj = pos[idx], obj[idx]
-                continue
-            max_pos = t.where(obj[idx] > prev_obj, pos[idx], max_pos)
+                idx = t.argmax(obj, dim=-1)[:, None]
+                oidx = obj.gather(1, idx)
+                pidx = pos.squeeze(-1).gather(1, dim)
+                if max_pos is None:
+                    max_pos, prev_obj = pidx, oidx
+                    continue
+                max_pos = t.where(oidx > prev_obj, pidx, max_pos)
 
             if i % 10 == 0:
                 prog.update(sample_t, advance=10)
 
     duration = time.time() - start
     logging.info(f'Completed {N * chains:,} samples in {duration:.2f} seconds')
-    if find_max:
-        return samples, max_pos
-    return samples
+    return samples, max_pos if find_max else samples  # type: ignore
 
 
 def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
@@ -154,7 +167,6 @@ def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
         alpha: momentum tempering term
-
     """
     size = initial_pos.shape
     device, dtype = initial_pos.device, initial_pos.dtype
@@ -164,9 +176,9 @@ def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
     salpha = t.ones(size).to(device, dtype) * math.sqrt(alpha)
     talpha = t.ones(size).to(device, dtype) * alpha
 
-    def dfd(x: Tensor) -> Tensor:
+    def dfd(x: Tensor) -> Tensor:  # df/dx |_x
         tmpx = x.detach().requires_grad_(True)
-        f(tmpx).backward(t.ones(x.shape[0], device=x.device, dtype=x.dtype))
+        f(tmpx).backward(t.ones(x.shape[:-1], device=x.device, dtype=x.dtype))
         return -tmpx.grad
 
     def K(u: Tensor) -> Tensor:  # kinetic energy
@@ -189,85 +201,110 @@ def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
         H_prop = K(up) + U(xl)
         H_curr = K(u) + U(pos)
         A = t.exp(-H_prop + H_curr)
-        accept = t.rand(size[0]).to(device, dtype) < A
+        accept = t.rand(size[:-1]).to(device, dtype) < A
         pos = t.where(accept.unsqueeze(-1), xl, pos)
 
         yield pos
 
 
-def HMC_sampler(f: Callable[[Tensor], Tensor], N: int = 1000,
-                chains: int = 100000, burn: int = 1000,
-                burn_chains: int = None, initial_pos: Tensor = None,
-                dim: int = 1, rho: float = 1e-2, L: int = 10,
-                alpha: float = 1.1, find_max: bool = False,
+def HMC_sampler(f: Callable[[Tensor], Tensor],
+                N: int = 1000, B: int = 1, chains: int = 100000, dim: int = 1,
+                initial_pos: Tensor = None,
+                burn: int = 1000, burn_chains: int = None,
+                rho: float = 1e-2, L: int = 10, alpha: float = 1.1,
+                find_max: bool = False, logging_freq: int = 10,
                 device: t.device = None, dtype: t.dtype = None
                 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
-    """Hamiltonian Monte Carlo sampler
+    """Batched Hamiltonian Monte Carlo sampler
+
+    We work with tensors of shape [N, B, C, D], for N the number of samples, B
+    the batch shape, C the number of chains, and D the dimension of the target
+    distribution.
+
+    You may either specify each of N, B, chains and dim, or specify initial_pos,
+    which must match these.
 
     Args:
         f: log probability density function / function to maximise
-        N: the number of samples to return _per chain_
+        N: the number of samples to return for each individual chain.
+        B: the batch shape
         chains: the number of chains to run concurrently during sampling
+        dim: number of dimensions for samples / the target distribution
+        initial_pos: optional tensor of starting positions, size [B, C, D]
         burn: the number of 'burn-in' steps.
         burn_chains: the number of chains to use while burning in. Defaults to
             `chains`.
-        initial_pos: optional tensor of starting positions, size [chains, dim]
-        dim: number of dimensions for samples / the target distribution
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
         alpha: momentum tempering term
         find_max: whether to additionally return the sampled position with the
             maximum f value.
 
-    Returns: a tensor of shape [N, chains, dim], for `dim` the number of
-        dimensions per sample.
+    Returns: a  tensor of shape [N, B, chains, dim] if find_max is False, else
+        also a tensor of shape [B, dim] with the maximum for each batch.
     """
     logging.info('Beginning HMC sampling')
     start = time.time()
+
+    init = initial_pos  # used as a circular buffer for burning in
+    assert N is not None, "number of samples to draw omitted"
+    if initial_pos is None:
+        assert B is not None, "batch size omitted"
+        assert chains is not None, "number of chains omitted"
+        assert dim is not None, "number of dimensions omitted"
+        ichains = burn_chains if burn_chains > 0 else chains
+        init = t.randn((B, ichains, dim), device=device, dtype=dtype)
+    else:
+        B, chains, dim = initial_pos.shape
+        burn_chains = chains
+    assert init is not None
+
     if burn_chains is None:
         burn_chains = chains
 
-    samples = t.empty((N, chains, dim), device=device, dtype=dtype)
+    samples = t.empty((N, B, chains, dim), device=device, dtype=dtype)
     max_pos, prev_obj = None, None
 
     with Progress() as prog:
         burn_t = prog.add_task("Burning-in...", total=burn)
 
-        pos = t.randn((burn_chains, dim), device=device, dtype=dtype)
-        # used as a circular buffer
-        init = initial_pos if initial_pos is not None else \
-            t.randn((chains, dim), device=device, dtype=dtype)
-
         # burn in phase
+        pos = init.clone()
         burn_sampler = HMC(f, pos, rho, L, alpha)
         for (tmp, b) in zip(burn_sampler, range(burn)):
-            lb = (b*burn_chains)%chains
-            ub = min(((b+1)*burn_chains)%chains, chains)
-            init[lb:ub] = tmp[:ub-lb]
-            if b % 10 == 0:
-                prog.update(burn_t, advance=10)
+            lb = (b * burn_chains) % chains
+            ub = min(((b + 1) * burn_chains) % chains, chains)
+            init[:, lb:ub] = tmp[:, :ub-lb]
+            if b % logging_freq == 0:
+                prog.update(burn_t, advance=logging_freq)
 
         # sampling phase
         sampler = HMC(f, init, rho, L, alpha)
         sample_t = prog.add_task("Sampling...", total=N)
+
         for (pos, i) in zip(sampler, range(N)):
-            samples[i] = pos.unsqueeze(0)
+            samples[i] = pos.unsqueeze(0)  # [1, B, chains, dim]
 
             if find_max:
-                pos = pos.reshape(-1, dim)
+                pos = pos.reshape(B, chains, dim)
                 with t.no_grad():
-                    obj = f(pos)
-                    idx = t.argmax(obj, dim=-1)
+                    obj = f(pos)  # [B, C]
+                assert obj.shape == (B, chains), "objective must be scalar-valued"
+                idx = t.argmax(obj, dim=-1).unsqueeze(-1)
+                pidx = idx.unsqueeze(-1).expand(B, 1, dim)
+                this_obj = obj.gather(1, idx)
+                this_pos = pos.gather(1, pidx).squeeze(-2)
                 if max_pos is None:
-                    max_pos, prev_obj = pos[idx], obj[idx]
+                    max_pos, prev_obj = this_pos, this_obj
                     continue
-                max_pos = t.where(obj[idx] > prev_obj, pos[idx], max_pos)
+                max_pos = t.where(this_obj > prev_obj, this_pos, max_pos)
 
-            if i % 10 == 0:
-                prog.update(sample_t, advance=10)
+            if i % logging_freq == 0:
+                prog.update(sample_t, advance=logging_freq)
+
+    assert max_pos.shape == (B, dim)
+    assert samples.shape == (N, B, chains, dim)
 
     duration = time.time() - start
     logging.info(f'Completed {N * chains:,} samples in {duration:.2f} seconds')
-    if find_max:
-        return samples, max_pos
-    return samples
+    return samples, max_pos if find_max else samples  # type: ignore
