@@ -18,15 +18,39 @@
 
 import torch as t
 import torch.nn as nn
+import prospect.models.priors as priors
 
 from typing import Any, Optional, Type
 
+import spt
 import spt.inference as inf
 
-from spt.config import ForwardModelParams
+from spt.utils import ConfigClass
+from spt.filters import FilterCheck, FilterLibrary, Filter
+from spt.modelling import ParamConfig, Parameter,\
+    build_model_fn_t, build_obs_fn_t, build_sps_fn_t
 from spt.inference import san
 from spt.load_photometry import load_simulated_data, get_norm_theta, \
     get_norm_theta_t, new_sample
+
+
+class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
+    """Testing parameters"""
+    filters: list[Filter] = FilterLibrary['des']
+    build_obs_fn: build_obs_fn_t = spt.modelling.build_obs
+    model_param_templates: list[str] = ['parametric_sfh']
+    model_params: list[Parameter] = [
+        Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
+        Parameter('mass', 10**6, 10**8, 10**10, priors.LogUniform,
+                  units='$log(M/M_\\odot)$', disp_floor=10**6.),
+        Parameter('logzsol', -2, -0.5, 0.19, units='$\\log (Z/Z_\\odot)$'),
+        Parameter('dust2', 0., 0.05, 2., units='optical depth at 5500AA'),
+        Parameter('tage', 0.001, 13., 13.8, units='Age, Gyr', disp_floor=1.),
+        # Parameter('tau', 0.1, 1, 100, priors.LogUniform, units='Gyr^{-1}'),
+        Parameter('tau', 10**(-1), 10**0, 10**2, priors.LogUniform, units='Gyr^{-1}'),]
+    build_model_fn: build_model_fn_t = spt.modelling.build_model
+    sps_kwargs: dict[str, Any] = {'zcontinuous': 1}
+    build_sps_fn: build_sps_fn_t = spt.modelling.build_sps
 
 
 class InferenceParams(inf.InferenceParams):
@@ -63,7 +87,7 @@ class MoGSANParams(san.SANParams):
     layer_norm: bool = True
     train_rsample: bool = False
     opt_lr: float = 1e-3
-    limits: Any = t.tensor([[0., 1.]]).repeat((6, 1))  # [6, 2]
+    # limits: Any = t.tensor([[0., 1.]]).repeat((6, 1))  # [6, 2]
 
 def test_san_initialisation():
     sp = MoGSANParams()
@@ -185,7 +209,7 @@ def test_san_sequential_blocks():
 
 def test_san_fpath():
     model = san.SAN(MoGSANParams())
-    assert model.fpath() == './results/sanmodels/lMoG_cd7_dd6_ms16_32_8_lp24_lnTrue_lr0.001_e10_bs1024_trsampleFalse_lim_.pt'
+    assert model.fpath() == './results/sanmodels/lMoG_cd7_dd6_ms16_32_8_lp24_lnTrue_lr0.001_e10_bs1024_trsampleFalse_.pt'
 
 
 def test_san_forward():
@@ -326,3 +350,101 @@ def test_san_forward_single():
         assert (last_params[:, :d+1] != 1.).all()  # _highly_ unlikely that a param is exactly 1.
 
     assert ys.shape == (1, sp.data_dim)
+
+
+# Truncated Gaussian tests -----------------------------------------------------
+
+
+class TSANParams(san.SANParams):
+    epochs: int = 10
+    batch_size: int = 1024
+    dtype: t.dtype = t.float32
+    cond_dim: int = 7
+    data_dim: int = 6
+    module_shape: list[int] = [16, 32]
+    sequence_features: int = 8
+    likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+
+    likelihood_kwargs: Optional[dict[str, Any]] = {
+        'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+        'K': 8, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
+    }
+
+    layer_norm: bool = True
+    train_rsample: bool = False
+    opt_lr: float = 1e-3
+    limits: Any = t.tensor([[0., 1.]]).repeat((6, 1))  # [6, 2]
+
+
+def test_tsan_initialisation():
+    sp = TSANParams()
+    model = san.SAN(sp)
+    assert model.module_shape == sp.module_shape
+    assert model.sequence_features == sp.sequence_features
+
+
+def test_san_tmog_likelihood():
+    dtype: t.float32
+    device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
+
+    fp = ForwardModelParams()
+    ip = InferenceParams()
+    sp = TSANParams()
+
+    train_loader, test_loader = load_simulated_data(
+        path=ip.dataset_loc, split_ratio=ip.split_ratio,
+        batch_size=sp.batch_size, # test_batch_size=1,
+        phot_transforms=[lambda x: t.from_numpy(x).log()],
+        theta_transforms=[get_norm_theta(fp)])
+
+    model = san.SAN(sp)
+
+    assert isinstance(model.likelihood, san.TruncatedMoG)
+    assert model.likelihood.name == "TMoG"
+    # 8 mixture components per output dimension
+    assert model.likelihood.K == 8
+    # number of parameters required for each dimension of the output
+    # (loc, scale, mixture_weight) * number of mixture components
+    assert model.likelihood.n_params() == 24
+    assert model.last_params is None
+
+    assert (model.likelihood.lower == 0.).all()
+    assert (model.likelihood.upper == 1.).all()
+
+
+# def test_truncated_mog_likelihood():
+#     # What is there to test?
+#     # - one dimensional and batch dimensions
+#     # - whether the support is being applied correctly
+#     # - whether samples are within the expected range
+#     # - whether you can call log prob on valid points
+#     #
+#     # Note: the limits are the same for each mixture component; they just change
+#     # per dimension. They are even the same for different batches...
+#
+#     K = 10
+#     lims = t.tensor(())
+
+
+
+    # parameters are [B, n_params] big. We need to incorporate information about
+    # the limits on each dimension. Note that the parameter shape currently
+    # decomposes to [B, (dims), K, NP] where dims is the number of dimensions of
+    # the data vector we're interested in, and NP are the number of parameters
+    # required for an individual mixture component (e.g. loc, scale, weight).
+    #
+    # In particular, the same limits will be shared among the B, K, NP
+    # dimensions.
+    #
+    # It may just be simpler to accept an additional dimension parameter which
+    # is used to determine which dimension we're interested in when calling
+    # log_prob, sample etc.
+
+    # we are just off to test the extract params thing to see the structure of
+    # the parameter blob
+    #
+    # Question: how can we provide the upper and lower limits along with the
+    # rest of the parameters without them getting all jumbled up?
+    #
+    # batches don't get re-shaped
+    # single parameters for the $n$th variable (of num_params) are strided by $n$
