@@ -39,7 +39,8 @@ __all__ = ["RWMH", "RWMH_sampler", "HMC", "HMC_sampler"]
 
 
 def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
-         sigma: float = 0.1) -> Generator[Tensor, None, None]:
+         sigma: float = 0.1, bounds: Optional[Tensor] = None
+         ) -> Generator[Tensor, None, None]:
     """
     Random walk Metropolis-Hastings.
 
@@ -47,25 +48,55 @@ def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
         logpdf: log probability density function
         initial     _pos: where to initialise the chains
         sigma: purturbation variance for proposals
+        bounds: optional bounds on the acceptance volume
     """
     size = initial_pos.shape
     device, dtype = initial_pos.device, initial_pos.dtype
     pos = initial_pos
     log_prob = logpdf(pos)
-    yield pos
+
+    if bounds is not None:
+        assert bounds.shape == (size[-1], 2), "bounds must have shape [dim, 2]"
 
     while True:
         eps = (t.randn(size)*sigma).to(device, dtype)
         proposal = pos + eps
         proposal_log_prob = logpdf(proposal)
 
-        log_unif = t.randn(size[0]).log().to(device, dtype)
+        log_unif = t.randn(size[:-1]).log().to(device, dtype)
         accept = log_unif < proposal_log_prob - log_prob
+
+        if bounds is not None:
+            OOB = (proposal.gt(bounds[:, 0] & proposal.lt(bounds[:, 1]))).all(-1)
+            accept = accept & OOB
 
         pos = t.where(accept.unsqueeze(-1), proposal, pos)
         log_prob = t.where(accept, proposal_log_prob, log_prob)
 
         yield pos
+
+# class MCMC_sampler:
+#
+#     def __init__(f: Callable[[Tensor], Tensor],
+#                  N: int = 1, B: int = 1, chains: int = 1, dim: int = 1,
+#                  initial_pos: Tensor = None,
+#                  burn: int = 0, burn_chains: int = None,
+#                  find_max: bool = False, logging_freq: int = 10,
+#                  bounds: Optional[Tensor] = None,
+#                  device: t.device = None, dtype: t.dtype = None):
+#         """Batched MCMC sampler"""
+#         pass
+#
+#     def __call__(self) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+#         return self.sample()
+#
+#     def sample():
+#         """Draw N samples"""
+#
+#     def __iter__(self) -> Tensor:
+#         raise NotImplementedError
+#
+# TODO finish this
 
 
 def RWMH_sampler(f: Callable[[Tensor], Tensor],
@@ -156,7 +187,8 @@ def RWMH_sampler(f: Callable[[Tensor], Tensor],
 
 
 def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
-        rho: float = 1e-2, L: int = 10, alpha: float = 1.1
+        rho: float = 1e-2, L: int = 10, alpha: float = 1.1,
+        bounds: Optional[Tensor] = None,
         ) -> Generator[Tensor, None, None]:
     """
     A simple Hamiltonian Monte Carlo implementation.
@@ -167,10 +199,16 @@ def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
         rho: a learning rate / step size
         L: the number of 'leapfrog' steps to complete per iteration
         alpha: momentum tempering term
+        bounds: optional bounds on the samples, shape [dim, 2] (for lower,
+            upper; unfortunately we don't support different bounds for each
+            batch currently.)
     """
     size = initial_pos.shape
     device, dtype = initial_pos.device, initial_pos.dtype
     pos = initial_pos
+
+    if bounds is not None:
+        assert bounds.shape == (size[-1], 2), "bounds must have shape [dim, 2]"
 
     l2 = math.floor(L/2.)
     salpha = t.ones(size).to(device, dtype) * math.sqrt(alpha)
@@ -202,6 +240,9 @@ def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
         H_curr = K(u) + U(pos)
         A = t.exp(-H_prop + H_curr)
         accept = t.rand(size[:-1]).to(device, dtype) < A
+        if bounds is not None:
+            OOB = (xl.gt(bounds[:, 0]) & xl.lt(bounds[:, 1])).all(-1)
+            accept = accept & OOB
         pos = t.where(accept.unsqueeze(-1), xl, pos)
 
         yield pos
@@ -213,6 +254,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
                 burn: int = 1000, burn_chains: int = None,
                 rho: float = 1e-2, L: int = 10, alpha: float = 1.1,
                 find_max: bool = False, logging_freq: int = 10,
+                bounds: Optional[Tensor] = None,
                 device: t.device = None, dtype: t.dtype = None
                 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
     """Batched Hamiltonian Monte Carlo sampler
@@ -239,6 +281,9 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
         alpha: momentum tempering term
         find_max: whether to additionally return the sampled position with the
             maximum f value.
+        bounds: optional bounds on the samples, shape [dim, 2] (for lower,
+            upper; unfortunately we don't support different bounds for each
+            batch currently.)
 
     Returns: a  tensor of shape [N, B, chains, dim] if find_max is False, else
         also a tensor of shape [B, dim] with the maximum for each batch.
@@ -248,16 +293,20 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
 
     init = initial_pos  # used as a circular buffer for burning in
     assert N is not None, "number of samples to draw omitted"
+
     if initial_pos is None:
         assert B is not None, "batch size omitted"
         assert chains is not None, "number of chains omitted"
         assert dim is not None, "number of dimensions omitted"
-        ichains = burn_chains if burn_chains > 0 else chains
+        ichains = burn_chains if burn_chains is not None and burn_chains > 0\
+            else chains
         init = t.randn((B, ichains, dim), device=device, dtype=dtype)
     else:
         B, chains, dim = initial_pos.shape
-        burn_chains = chains
     assert init is not None
+
+    if bounds is not None:
+        init = init.clamp(bounds[:, 0], bounds[:, 1])
 
     if burn_chains is None:
         burn_chains = chains
@@ -270,7 +319,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
 
         # burn in phase
         pos = init.clone()
-        burn_sampler = HMC(f, pos, rho, L, alpha)
+        burn_sampler = HMC(f, pos, rho, L, alpha, bounds)
         for (tmp, b) in zip(burn_sampler, range(burn)):
             lb = (b * burn_chains) % chains
             ub = min(((b + 1) * burn_chains) % chains, chains)
@@ -279,7 +328,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
                 prog.update(burn_t, advance=logging_freq)
 
         # sampling phase
-        sampler = HMC(f, init, rho, L, alpha)
+        sampler = HMC(f, init, rho, L, alpha, bounds)
         sample_t = prog.add_task("Sampling...", total=N)
 
         for (pos, i) in zip(sampler, range(N)):
@@ -302,7 +351,8 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
             if i % logging_freq == 0:
                 prog.update(sample_t, advance=logging_freq)
 
-    assert max_pos.shape == (B, dim)
+    if max_pos is not None:
+        assert max_pos.shape == (B, dim)
     assert samples.shape == (N, B, chains, dim)
 
     duration = time.time() - start
