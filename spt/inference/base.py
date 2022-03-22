@@ -82,6 +82,18 @@ class InferenceParams(ConfigClass):
         """
         return ""
 
+    @property
+    def update_epochs(self) -> int:
+        """The number of epochs of the "posterior matching" procedure to run."""
+        return 10
+
+    @property
+    def update_K(self) -> int:
+        """The number of samples to use in the ECDF for the update step (note:
+        quickly increases memory requirements)
+        """
+        return 20
+
 
 class ModelParams(ConfigClass, ABC):
 

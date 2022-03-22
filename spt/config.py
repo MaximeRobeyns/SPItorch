@@ -131,6 +131,13 @@ class InferenceParams(inference.InferenceParams):
     # the data below (e.g. number / types of filters etc)
     catalogue_loc: str = './data/DES_VIDEO_v1.0.1.fits'
 
+    # The number of epochs of the "posterior matching" procedure to run
+    update_epochs: int = 10
+
+    # The number of samples to use in the ECDF for the update step (note:
+    # quickly increases memory requirements)
+    update_K: int = 20
+
 
 # Prospector fitting parameters -----------------------------------------------
 
@@ -183,6 +190,7 @@ class DynestyParams(ConfigClass):
 # Machine learning inference --------------------------------------------------
 
 
+# Parameters for approximate posterior
 class SANParams(san.SANParams):
 
     # Number of epochs to train for (offline training)
@@ -210,6 +218,47 @@ class SANParams(san.SANParams):
         'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
         'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
         'validate_args': False,
+    }
+
+    # Whether to use batch norm
+    layer_norm: bool = True
+
+    # Whether to use reparametrised sampling during training
+    train_rsample: bool = False
+
+    # Optimiser (Adam) learning rate
+    opt_lr: float = 3e-3
+
+    # Optimiser (Adam) weight decay
+    opt_decay: float = 1e-4
+
+
+# Parameters for neural likelihood
+class SANLikelihoodParams(san.SANParams):
+
+    # Number of epochs to train for (offline training)
+    epochs: int = 10
+
+    batch_size: int = 1024
+
+    dtype: t.dtype = t.float32
+
+    # Dimension of physical parameters
+    cond_dim: int = len(ForwardModelParams().free_params)
+
+    # Dimension of observed photometry
+    data_dim: int = len(ForwardModelParams().filters)
+
+    # shape of the network 'modules'
+    module_shape: list[int] = [1024, 1024]
+
+    # features passed between sequential blocks
+    sequence_features: int = 16
+
+    likelihood: Type[san.SAN_Likelihood] = san.MoG
+
+    likelihood_kwargs: Optional[dict[str, Any]] = {
+        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
     }
 
     # Whether to use batch norm
