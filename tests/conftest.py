@@ -26,14 +26,14 @@ from spt.config import LoggingParams
 
 
 class LP(LoggingParams):
-    log_to_file: bool = False
-    file_level: int = logging.ERROR
+    log_to_file: bool = True
+    file_level: int = logging.WARNING
+    file_loc: str = './tests/logs.txt'
 
     log_to_console: bool = True
-    console_level: int = logging.ERROR
+    console_level: int = logging.WARNING
 
     debug_logs: bool = False
-    debug_level: int = logging.DEBUG
 
 
 def pytest_addoption(parser):
@@ -44,6 +44,7 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
+    # configure_logging(file=True, file_loc='./tests/logs.txt')
     configure_logging(LP())
 
 
