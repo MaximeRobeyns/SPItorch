@@ -425,8 +425,8 @@ def ppplot(xs: np.ndarray, ys: np.ndarray,
     ax.plot(diag, diag, ls='--', c='k', label='diag')
     for i in range(xs.shape[1]):
         xi, yi = xs[:, i], ys[:, i]
-        x_ecdf = np.sort(xi) - min(xi) / max(xi) - min(xi)
-        y_ecdf = np.sort(yi) - min(yi) / max(yi) - min(yi)
+        x_ecdf = np.sort(xi) - min(xi) / (max(xi) - min(xi))
+        y_ecdf = np.sort(yi) - min(yi) / (max(yi) - min(yi))
         ax.plot(x_ecdf, y_ecdf, label=labels[i])
     ax.set_xlim(0., 1.)
     ax.set_ylim(0., 1.)

@@ -184,6 +184,7 @@ class MoG(SAN_Likelihood):
     def _stabilise(self, S: Tensor) -> Tensor:
         while not S.gt(0.).all():
             S = t.where(S.le(0.), S.abs()*(1.+self.mult_eps)+self.abs_eps, S)
+            # S = S.abs()*(1.+self.mult_eps) + self.abs_eps
         return S
 
     def _stable_norms(self, loc: Tensor, scale: Tensor) -> Normal:
@@ -283,6 +284,7 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
     def _stabilise(self, S: Tensor) -> Tensor:
         while not S.gt(0.).all():
             S = t.where(S.le(0.), S.abs()*(1.+self.mult_eps)+self.abs_eps, S)
+            # S = S.abs()*(1.+self.mult_eps) + self.abs_eps
         return S
 
     def _stable_norms(self, loc: Tensor, scale: Tensor, A: Tensor, B: Tensor
@@ -466,6 +468,11 @@ class SANParams(ModelParams):
     @property
     def opt_lr(self) -> float:
         """Optimiser learning rate"""
+        return 3e-3
+
+    @property
+    def opt_decay(self) -> float:
+        """Optimiser weight decay"""
         return 1e-4
 
     @property
@@ -498,6 +505,7 @@ class SAN(Model):
         self.module_shape = mp.module_shape
         self.sequence_features = mp.sequence_features
         self.lr = mp.opt_lr
+        self.decay = mp.opt_decay
 
         kwargs = {} if mp.likelihood_kwargs is None else mp.likelihood_kwargs
         self.likelihood: SAN_Likelihood = mp.likelihood(**kwargs)
@@ -535,7 +543,8 @@ class SAN(Model):
         # Size: [mini-batch, likelihood_params]
         self.last_params: Optional[Tensor] = None
 
-        self.opt = t.optim.Adam(self.parameters(), lr=self.lr)
+        self.opt = t.optim.Adam(self.parameters(), lr=self.lr,
+                                weight_decay=self.decay)
 
         if mp.device == t.device('cuda'):
             self.to(mp.device, mp.dtype)
@@ -728,6 +737,7 @@ class SAN(Model):
                 f'(got {type(x)})'))
 
         x = x.unsqueeze(0) if x.dim() == 1 else x
+        # TODO remove this
         assert x.dim() == 2, "Please 'flatten' your batch of points to be 2 dimensional"
         x, _ = self.preprocess(x, t.empty(x.shape))
         n, d = x.shape

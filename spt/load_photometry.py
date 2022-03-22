@@ -281,7 +281,7 @@ def get_norm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarray]
     # lims = np.where(islog, np.log(lims), lims)
 
     def f(dt: np.ndarray) -> np.ndarray:
-        assert dt.shape[1] == lims.shape[0]
+        assert dt.shape[-1] == lims.shape[0]
         warnings.simplefilter("ignore")
         dt = np.where(islog, np.log(dt), dt)
         offset = dt - lims[:, 0]
@@ -299,7 +299,7 @@ def get_norm_theta_t(fp: ForwardModelParams, dtype=None, device=None
     # assert not lims.isnan().any()
 
     def f(denorm_theta: Tensor) -> Tensor:
-        assert denorm_theta.shape[1] == lims.shape[0]
+        assert denorm_theta.shape[-1] == lims.shape[0]
         denorm_theta = t.where(islog, t.log(denorm_theta), denorm_theta)
         offset = denorm_theta - lims[:, 0]
         return offset / (lims[:, 1] - lims[:, 0])
@@ -316,7 +316,7 @@ def get_denorm_theta(fp: ForwardModelParams) -> Callable[[np.ndarray], np.ndarra
     # lims = np.where(islog, np.log(lims), lims)
 
     def f(norm_theta: np.ndarray) -> np.ndarray:
-        assert norm_theta.shape[1] == lims.shape[0]
+        assert norm_theta.shape[-1] == lims.shape[0]
         theta = (lims[:, 1] - lims[:, 0]) * norm_theta + lims[:, 0]
         return np.where(islog, np.exp(theta), theta)
 
@@ -335,7 +335,7 @@ def get_denorm_theta_t(fp: ForwardModelParams, dtype=None, device=None
     # assert not lims.isnan().any()
 
     def f(norm_theta: Tensor) -> Tensor:
-        assert norm_theta.shape[1] == lims.shape[0]
+        assert norm_theta.shape[-1] == lims.shape[0]
         theta = (lims[:, 1] - lims[:, 0]) * norm_theta + lims[:, 0]
         # previously t.exp(t.clip(theta, -10, 20), theta)
         return t.where(islog, t.exp(theta), theta)

@@ -219,7 +219,10 @@ class SANParams(san.SANParams):
     train_rsample: bool = False
 
     # Optimiser (Adam) learning rate
-    opt_lr: float = 1e-3
+    opt_lr: float = 3e-3
+
+    # Optimiser (Adam) weight decay
+    opt_decay: float = 1e-4
 
 
 # =========================== Logging Parameters ==============================

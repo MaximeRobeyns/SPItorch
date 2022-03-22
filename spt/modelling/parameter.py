@@ -272,7 +272,7 @@ def prospector_to_torch_dist(P: Prior, dtype: t.dtype = None,
         return tdist.Normal(_t(P.loc), _t(P.scale))
     elif isinstance(P, ppr.ClippedNormal):
         raise NotImplementedError(
-            'TODO: https://discuss.pytorch.org/t/implementing-truncated-normal-initializer/4778/20)')
+            'TODO: port spt.inference.utils.TruncatedNormal for use here')
     elif isinstance(P, ppr.LogUniform):
         return LogUniform(_t(P.range[0]), _t(P.range[1]))
     elif isinstance(P, ppr.Beta):
