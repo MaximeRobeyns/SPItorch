@@ -25,7 +25,8 @@ from torch.utils.data import DataLoader
 
 from spt.types import Tensor
 from spt.inference.san import SAN
-from spt.load_photometry import load_simulated_data, get_denorm_theta_t
+from spt.load_photometry import load_simulated_data, get_denorm_theta_t, \
+    get_norm_theta, load_real_data
 
 
 class PModel(SAN):
@@ -35,9 +36,11 @@ class PModel(SAN):
         return y.to(self.device, self.dtype), x.to(self.device, self.dtype)
 
 
-def match_posteriors(Q: SAN, P: SAN, train_loader: DataLoader, epochs: int,
+def tuning_procedure(Q: SAN, P: SAN, train_loader: DataLoader, epochs: int,
                      K: int, logging_frequency: int = 1000) -> SAN:
-    """Run the posterior matching training procedure"""
+    """Run the training procedure on the real data"""
+
+    # Training start time: 17:03
     Q.train()
     P.eval()
 
@@ -53,28 +56,18 @@ def match_posteriors(Q: SAN, P: SAN, train_loader: DataLoader, epochs: int,
         for i, (x, y) in enumerate(train_loader):
             x, _ = Q.preprocess(x, y)
 
-            xshape = x.shape
-            xs = x.unsqueeze(-2).expand(xshape[0], K, xshape[1])
+            # xshape = x.shape
+            # xs = x.unsqueeze(-2).expand(xshape[0], K, xshape[1])
+            xs = x.repeat_interleave(K, 0)
 
             theta_hat = Q(xs, rsample=False).detach()
+
             x_hat = P(theta_hat, rsample=False).detach()
 
             _ = Q(x_hat, rsample=False)
-            approx_posterior = Q.likelihood.log_prob(theta_hat, Q.last_params)
-            approx_posterior = approx_posterior.sum(-1)
+            post_prob = Q.likelihood.log_prob(theta_hat, Q.last_params)
 
-            _ = P(theta_hat, rsample=False)
-            log_likelihood = P.likelihood.log_prob(x_hat, P.last_params).sum(-1)
-            log_likelihood = log_likelihood.sum(-1)[..., None]
-            denorm = dtt(theta_hat)
-            prior_dims = [priors[d].log_prob(denorm[..., d])[..., None]
-                          for d in range(len(priors))]
-            log_prior = t.cat(prior_dims, -1).sum(-1)[..., None]
-            posterior = t.cat((log_likelihood, log_prior), -1).logsumexp(-1)
-            posterior = posterior.detach()
-
-            X1, X2 = t.sort(approx_posterior)[0], t.sort(posterior)[0]
-            loss = ((X1 - X2) ** 2.).sum(-1).mean(0)
+            loss = -post_prob.sum(-1).mean(0)
 
             Q.opt.zero_grad()
             loss.backward()
@@ -96,17 +89,16 @@ if __name__ == '__main__':
 
     # Maximum-likelihood training of approximate posterior --------------------
 
-    # TODO load model parameters dynamically based on the model type
     mp = cfg.SANParams()
-    Q = ip.model(mp)
+    Q = SAN(mp)
     logging.info(f'Initialised {Q.name} model')
 
     train_loader, test_loader = load_simulated_data(
         path=ip.dataset_loc,
         split_ratio=ip.split_ratio,
         batch_size=Q.params.batch_size,
-        phot_transforms=[],
-        theta_transforms=[],
+        phot_transforms=[lambda x: t.from_numpy(np.log(x))],
+        theta_transforms=[get_norm_theta(fp)],
     )
     logging.info('Created data loaders')
 
@@ -116,15 +108,15 @@ if __name__ == '__main__':
     # Maximum-likelihood training of neural likelihood ------------------------
 
     lp = cfg.SANLikelihoodParams()
-    P = SAN(lp)
+    P = PModel(lp)
     logging.info(f'Initialised neural likelihood: {P.name}')
     ip.ident = "ML_likelihood"
     P.offline_train(train_loader, ip)
     logging.info('ML training of neural likelihood complete.')
 
-    # "Posterior matching" procedure ------------------------------------------
+    # Rest of training procedure ----------------------------------------------
 
-    Q = match_posteriors(Q, P, train_loader, ip.update_epochs, ip.update_K,
+    Q = tuning_procedure(Q, P, train_loader, ip.update_epochs, ip.update_K,
                          ip.logging_frequency)
 
     real_train_loader, real_test_loader = load_real_data(
@@ -136,7 +128,7 @@ if __name__ == '__main__':
         x_transforms=[np.log],
     )
 
-    Q = match_posteriors(Q, P, real_train_loader, ip.update_real_epochs,
+    Q = tuning_procedure(Q, P, real_train_loader, ip.update_real_epochs,
                          ip.update_K, ip.logging_frequency)
 
     t.save(Q.state_dict(), Q.fpath(f'{ip.ident}_fulltrained'))

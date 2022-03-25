@@ -243,11 +243,11 @@ class SANLikelihoodParams(san.SANParams):
 
     dtype: t.dtype = t.float32
 
-    # Dimension of physical parameters
-    cond_dim: int = len(ForwardModelParams().free_params)
-
     # Dimension of observed photometry
     data_dim: int = len(ForwardModelParams().filters)
+
+    # Dimension of physical parameters
+    cond_dim: int = len(ForwardModelParams().free_params)
 
     # shape of the network 'modules'
     module_shape: list[int] = [1024, 1024]
