@@ -564,17 +564,16 @@ class SAN(Model):
 
     def fpath(self, ident: str='') -> str:
         """Returns a file path to save the model to, based on its parameters."""
-        if self.savepath_cached == "":
-            base = './results/sanmodels/'
-            s = self.module_shape + [self.sequence_features]
-            ms = '_'.join([str(l) for l in s])
-            name = (f'l{self.likelihood.name}_cd{self.cond_dim}'
-                    f'_dd{self.data_dim}_ms{ms}_'
-                    f'lp{self.likelihood.n_params()}_ln{self.layer_norm}_'
-                    f'lr{self.lr}_e{self.epochs}_bs{self.batch_size}_'
-                    f'trsample{self.train_rsample}_')
-            name += 'lim_' if self.limits is not None else ''
-            self.savepath_cached = f'{base}{name}{ident}.pt'
+        base = './results/sanmodels/'
+        s = self.module_shape + [self.sequence_features]
+        ms = '_'.join([str(l) for l in s])
+        name = (f'l{self.likelihood.name}_cd{self.cond_dim}'
+                f'_dd{self.data_dim}_ms{ms}_'
+                f'lp{self.likelihood.n_params()}_ln{self.layer_norm}_'
+                f'lr{self.lr}_ld{self.decay}_e{self.epochs}_'
+                f'bs{self.batch_size}_trsample{self.train_rsample}_')
+        name += 'lim_' if self.limits is not None else ''
+        self.savepath_cached = f'{base}{name}{ident}.pt'
 
         return self.savepath_cached
 
@@ -725,6 +724,47 @@ class SAN(Model):
         # Pre-emptively put model in evaluation mode.
         self.eval()
 
+    @typing.no_type_check
+    def retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
+                          P: Model, epochs: int, K: int, lr: float = 3e-4,
+                          decay: float = 1e-4, logging_frequency: int = 1000
+                          ) -> None:
+        """Perform the 'retraining' procedure"""
+        self.train()
+        t.random.seed()
+
+        opt = t.optim.Adam(self.parameters(), lr=lr, weight_decay=decay)
+
+        start_e = self.attempt_checkpoint_recovery(ip)
+        for e in range(start_e, epochs):
+            for i, (x, y) in enumerate(train_loader):
+                x, _ = self.preprocess(x, y)
+
+                # xshape = x.shape
+                # xs = x.unsqueeze(-2).expand(xshape[0], K, xshape[1])
+                xs = x.repeat_interleave(K, 0)
+
+                with t.no_grad():
+                    theta_hat = self.forward(xs, rsample=False)
+                    x_hat = P(theta_hat, rsample=False)
+
+                _ = self.forward(x_hat, rsample=False)
+                post_prob = self.likelihood.log_prob(theta_hat, self.last_params)
+
+                loss = -post_prob.sum(-1).mean(0)
+
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+
+                if i % logging_frequency == 0:
+                    logging.info((f'Objective at epoch: {e:02d}/{epochs:02d}'
+                                  f' iter: {i:04d}/{len(train_loader):04d} is '
+                                  f'{loss.detach().cpu().item()}'))
+            self.checkpoint(ip.ident)
+
+        self.eval()
+
     def _preprocess_sample_input(self, x: tensor_like, n_samples: int = 1000,
                                  errs: Optional[tensor_like] = None) -> Tensor:
 
@@ -803,6 +843,13 @@ class SAN(Model):
         modes = rsamples.gather(1, idxs).squeeze(1)  # [B, data_dim]
 
         return modes
+
+
+class PModel(SAN):
+    """A SAN which is slightly adapted to act as a likelihood / forward model
+    emulator by switching the xs and thetas in the preprocessing step."""
+    def preprocess(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+        return y.to(self.device, self.dtype), x.to(self.device, self.dtype)
 
 
 if __name__ == '__main__':

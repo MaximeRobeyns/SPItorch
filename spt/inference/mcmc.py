@@ -313,6 +313,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
 
     samples = t.empty((N, B, chains, dim), device=device, dtype=dtype)
     max_pos, prev_obj = None, None
+    assert init is not None
 
     with Progress() as prog:
         burn_t = prog.add_task("Burning-in...", total=burn)

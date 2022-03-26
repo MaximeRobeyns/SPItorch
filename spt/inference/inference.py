@@ -24,60 +24,53 @@ import numpy as np
 from torch.utils.data import DataLoader
 
 from spt.types import Tensor
-from spt.inference.san import SAN
-from spt.load_photometry import load_simulated_data, get_denorm_theta_t, \
-    get_norm_theta, load_real_data
+from spt.inference.san import SAN, PModel
+from spt.load_photometry import load_simulated_data, get_norm_theta
 
 
-class PModel(SAN):
-    """A SAN which is slightly adapted to act as a likelihood / forward model
-    emulator by switching the xs and thetas in the preprocessing step."""
-    def preprocess(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
-        return y.to(self.device, self.dtype), x.to(self.device, self.dtype)
-
-
-def tuning_procedure(Q: SAN, P: SAN, train_loader: DataLoader, epochs: int,
-                     K: int, logging_frequency: int = 1000) -> SAN:
-    """Run the training procedure on the real data"""
-
-    # Training start time: 17:03
-    Q.train()
-    P.eval()
-
-    fp = cfg.ForwardModelParams()
-
-    dtt = get_denorm_theta_t(fp, dtype=mp.dtype, device=mp.device)
-    priors = fp.to_torch_priors(mp.dtype, mp.device)
-
-    Q.opt = t.optim.Adam(Q.parameters(), lr=3e-4, weight_decay=1e-4)
-
-    # update on in-distribution points first
-    for e in range(epochs):
-        for i, (x, y) in enumerate(train_loader):
-            x, _ = Q.preprocess(x, y)
-
-            # xshape = x.shape
-            # xs = x.unsqueeze(-2).expand(xshape[0], K, xshape[1])
-            xs = x.repeat_interleave(K, 0)
-
-            theta_hat = Q(xs, rsample=False).detach()
-
-            x_hat = P(theta_hat, rsample=False).detach()
-
-            _ = Q(x_hat, rsample=False)
-            post_prob = Q.likelihood.log_prob(theta_hat, Q.last_params)
-
-            loss = -post_prob.sum(-1).mean(0)
-
-            Q.opt.zero_grad()
-            loss.backward()
-            Q.opt.step()
-
-            if i % ip.logging_frequency == 0:
-                logging.info((f'Objective at epoch: {e:02d}/{epochs:02d}'
-                              f' iter: {i:04d}/{len(train_loader):04d} is '
-                              f'{loss.sum(-1).detach().cpu().item()}'))
-    return Q
+# def tuning_procedure(Q: SAN, P: SAN, train_loader: DataLoader, epochs: int,
+#                      K: int, logging_frequency: int = 1000) -> SAN:
+#     """Run the training procedure on the real data"""
+#
+#     # Training start time: 17:03
+#     Q.train()
+#     P.eval()
+#
+#     fp = cfg.ForwardModelParams()
+#
+#     dtt = get_denorm_theta_t(fp, dtype=mp.dtype, device=mp.device)
+#     priors = fp.to_torch_priors(mp.dtype, mp.device)
+#
+#     Q.opt = t.optim.Adam(Q.parameters(), lr=3e-4, weight_decay=1e-4)
+#
+#     # update on in-distribution points first
+#     for e in range(epochs):
+#         for i, (x, y) in enumerate(train_loader):
+#             x, _ = Q.preprocess(x, y)
+#
+#             # xshape = x.shape
+#             # xs = x.unsqueeze(-2).expand(xshape[0], K, xshape[1])
+#             xs = x.repeat_interleave(K, 0)
+#
+#             theta_hat = Q(xs, rsample=False).detach()
+#
+#             with t.no_grad():
+#                 x_hat = P(theta_hat, rsample=False).detach()
+#
+#             _ = Q(x_hat, rsample=False)
+#             post_prob = Q.likelihood.log_prob(theta_hat, Q.last_params)
+#
+#             loss = -post_prob.sum(-1).mean(0)
+#
+#             Q.opt.zero_grad()
+#             loss.backward()
+#             Q.opt.step()
+#
+#             if i % ip.logging_frequency == 0:
+#                 logging.info((f'Objective at epoch: {e:02d}/{epochs:02d}'
+#                               f' iter: {i:04d}/{len(train_loader):04d} is '
+#                               f'{loss.sum(-1).detach().cpu().item()}'))
+#     return Q
 
 
 if __name__ == '__main__':
@@ -111,24 +104,20 @@ if __name__ == '__main__':
     P = PModel(lp)
     logging.info(f'Initialised neural likelihood: {P.name}')
     ip.ident = "ML_likelihood"
+
     P.offline_train(train_loader, ip)
     logging.info('ML training of neural likelihood complete.')
 
-    # Rest of training procedure ----------------------------------------------
+    # Update procedure with simulated data ------------------------------------
 
-    Q = tuning_procedure(Q, P, train_loader, ip.update_epochs, ip.update_K,
-                         ip.logging_frequency)
+    ip.ident = ip.update_sim_ident
+    Q.retrain_procedure(train_loader, ip, P=P, epochs=ip.update_sim_epochs,
+                        K=ip.update_sim_K, lr=3e-4, decay=1e-4)
+    logging.info('Updated on simulated data')
 
-    real_train_loader, real_test_loader = load_real_data(
-        path=ip.catalogue_loc,
-        filters=fp.filters,
-        split_ratio=ip.split_ratio,
-        batch_size=1024,
-        transforms=[t.from_numpy],
-        x_transforms=[np.log],
-    )
+    # Update procedure with real data -----------------------------------------
 
-    Q = tuning_procedure(Q, P, real_train_loader, ip.update_real_epochs,
-                         ip.update_K, ip.logging_frequency)
-
-    t.save(Q.state_dict(), Q.fpath(f'{ip.ident}_fulltrained'))
+    ip.ident = ip.update_real_ident
+    Q.retrain_procedure(train_loader, ip, P=P, epochs=ip.update_real_epochs,
+                        K=ip.update_real_K, lr=3e-4, decay=1e-4)
+    logging.info('Updated on real data')

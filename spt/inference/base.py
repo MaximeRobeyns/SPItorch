@@ -83,16 +83,33 @@ class InferenceParams(ConfigClass):
         return ""
 
     @property
-    def update_epochs(self) -> int:
+    def update_sim_epochs(self) -> int:
         """The number of epochs of the "posterior matching" procedure to run."""
         return 10
 
     @property
-    def update_K(self) -> int:
+    def update_sim_K(self) -> int:
         """The number of samples to use in the ECDF for the update step (note:
         quickly increases memory requirements)
         """
         return 20
+
+    @property
+    def update_sim_ident(self) -> str:
+        """Identifier to append to filepath of updated model"""
+        return "sim_update"
+
+    @property
+    def update_real_epochs(self) -> int:
+        return 10
+
+    @property
+    def update_real_K(self) -> int:
+        return 10
+
+    @property
+    def update_real_ident(self) -> str:
+        return "real_update"
 
 
 class ModelParams(ConfigClass, ABC):
@@ -178,6 +195,7 @@ class Model(nn.Module, metaclass=ABCMeta):
         except AttributeError:
             cls.__repr__ = Model._wrap_lines(cls.__repr__)
             cls.offline_train = Model._save_results(cls.offline_train)
+            cls.retrain_procedure = Model._save_results(cls.retrain_procedure)
             cls._sub_init = True
         return cls
 
@@ -205,11 +223,11 @@ class Model(nn.Module, metaclass=ABCMeta):
         return _f
 
     @staticmethod
-    def _save_results(offline_train: Callable[..., None]) -> Callable[..., None]:
-        """Decorator for the training method `offline_train` which caches trained
+    def _save_results(train_func: Callable[..., None]) -> Callable[..., None]:
+        """Decorator for the training method `train_func` which caches trained
         models on disk avoiding unnecessary re-training of identical models,
-        and preventing users from forgetting to save models at the end of
-        training!
+        also preventing users from forgetting to save models at the end of
+        training.
 
         Args:
             offline_train: training function from inheriting class
@@ -234,7 +252,7 @@ class Model(nn.Module, metaclass=ABCMeta):
                         f'Could not load model at {savepath}. Training...')
 
             # Do the training
-            offline_train(self, loader, ip, *args, **kwargs)
+            train_func(self, loader, ip, *args, **kwargs)
             self.is_trained = True
             logging.info(f'Trained {self}.')
 
@@ -368,6 +386,17 @@ class Model(nn.Module, metaclass=ABCMeta):
                       *args, **kwargs) -> None:
         """Train the model from an offline dataset of (theta, photometry)
         pairs.
+
+        Args:
+            train_loader: DataLoader to load the training data.
+            ip: the inference parameters describing the training procedure.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
+                          *args, **kwargs):
+        """Update procedure, usually using real data.
 
         Args:
             train_loader: DataLoader to load the training data.

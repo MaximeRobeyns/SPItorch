@@ -93,8 +93,7 @@ class SamplingParams(ConfigClass):
     n_samples: int = int(10e6)
     concurrency: int = 10
     observation: bool = False  # use real observation as obs... should have no effect
-    # save_dir: str = './data/dsets/dev/'
-    save_dir: str = './data/dsets/dev2/'
+    save_dir: str = './data/dsets/example/'
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
@@ -115,8 +114,7 @@ class InferenceParams(inference.InferenceParams):
 
     # Filepath to hdf5 file or directory of files to use as offline dataset
     # dataset_loc: str = SamplingParams().save_dir
-    dataset_loc: str = './data/dsets/dev/photometry_sim_10000000.h5'
-    # dataset_loc: str = './data/dsets/dev2/...'
+    dataset_loc: str = './data/dsets/example/photometry_sim_10000000.h5'
 
     # Force re-train an existing model
     retrain_model: bool = False
@@ -125,18 +123,25 @@ class InferenceParams(inference.InferenceParams):
     # set to False, any previous checkpoints are deleted!
     use_existing_checkpoints: bool = True
 
-    ident: str = 'development'
+    ident: str = 'example'
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
     catalogue_loc: str = './data/DES_VIDEO_v1.0.1.fits'
 
-    # The number of epochs of the "posterior matching" procedure to run
-    update_epochs: int = 10
+    # The number of epochs of the posterior update procedure to run using
+    # simulated data
+    update_sim_epochs: int = 10
+    # The number of samples to use in each update step.
+    # (note: quickly increases memory requirements)
+    update_sim_K: int = 1
+    # What to save this as.
+    update_sim_ident: str = 'example_sim_update'
 
-    # The number of samples to use in the ECDF for the update step (note:
-    # quickly increases memory requirements)
-    update_K: int = 20
+    # Same as above, but for real data (from catalogue_loc)
+    update_real_epochs: int = 10
+    update_real_K: int = 10
+    update_real_ident: str = 'example_real_update'
 
 
 # Prospector fitting parameters -----------------------------------------------
@@ -234,6 +239,7 @@ class SANParams(san.SANParams):
 
 
 # Parameters for neural likelihood
+# Note: this can be much (much!) smaller and hence faster.
 class SANLikelihoodParams(san.SANParams):
 
     # Number of epochs to train for (offline training)

@@ -34,6 +34,7 @@ from spt.load_photometry import save_sim, join_partial_results
 
 status_t = tuple[int, Status, int]  # rank, Status, N
 
+
 class TSStatus:
     def __init__(self, val: Status = Status.STARTING):
         self._lock = Lock()
@@ -85,7 +86,7 @@ def sim_func(status, idx: int):
     status[1] = N
 
 
-if __name__ == '__main__':
+def main():
 
     from mpi4py import MPI
     from spt.utils import splash_screen
@@ -166,7 +167,6 @@ if __name__ == '__main__':
 
         join_partial_results(sp.save_dir, sp.n_samples, sp.concurrency)
 
-
     def work_func(mpi_comm: MPIComm):
 
         sm = Manager()
@@ -187,14 +187,13 @@ if __name__ == '__main__':
         if p.is_alive():
             p.terminate()
 
-
     mpi_comm: MPIComm = MPI.COMM_WORLD
     mpi_rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
 
     if mpi_size == 1:
         logging.warning((
-            f'Running MPI with only 1 rank.\n'
+            'Running MPI with only 1 rank.\n'
             'Try increasing SamplingParams.concurrency or check the mpi launch'
             ' command (e.g. mpirun or similar).'))
         raise RuntimeError('Only one MPI rank.')
@@ -203,3 +202,8 @@ if __name__ == '__main__':
         root_func(mpi_comm)
     else:
         work_func(mpi_comm)
+
+
+if __name__ == '__main__':
+
+    main()
