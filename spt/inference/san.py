@@ -621,11 +621,13 @@ class SAN(Model):
 
         return block, heads
 
-    def forward(self, x: Tensor, rsample: bool = False) -> Tensor:
+    def forward(self, x: Tensor, lp: bool = False,
+                rsample: bool = False) -> Tensor:
         """Runs the autoregressive model.
 
         Args:
             x: some conditioning information [B, cond_dim]
+            lp: whether to save the last parameters
             rsample: whether to stop gradients (False) or not (True) in the
                 autoregressive sampling step.
 
@@ -635,13 +637,16 @@ class SAN(Model):
         Implicit Returns:
             self.last_params: a tensor containing the parameters of each
                 dimension's (univariate) distribution of size
-                [mini-batch, lparams]; giving p(y | x)
+                [mini-batch, lparams]; giving p(y | x). Only if lp=True.
         """
 
         B = x.shape[:-1]
         ys = t.empty(B + (0,), dtype=self.dtype, device=self.device)
-        self.last_params = t.empty(B + (0, self.likelihood.n_params()),
-                                   dtype=self.dtype, device=self.device)
+        if lp:
+            self.last_params = t.empty(B + (0, self.likelihood.n_params()),
+                                       dtype=self.dtype, device=self.device)
+        else:
+            self.last_params = None
 
         seq_features = t.empty(B + (0,), dtype=self.dtype, device=self.device)
 
@@ -667,7 +672,8 @@ class SAN(Model):
             y_d = y_d[(...,) + (None, ) * (ys.dim() - y_d.dim())]
 
             ys = t.cat((ys, y_d), -1)
-            self.last_params = t.cat((self.last_params, params.unsqueeze(-2)), x.dim()-1)
+            if lp:
+                self.last_params = t.cat((self.last_params, params.unsqueeze(-2)), x.dim()-1)
 
         # check we did the sampling right
         assert ys.shape == B + (self.data_dim,)
@@ -701,7 +707,7 @@ class SAN(Model):
 
                 # The following implicitly updates self.last_params, and
                 # returns y_hat (a sample from p(y | x))
-                _ = self.forward(x, self.train_rsample)
+                _ = self.forward(x, True, self.train_rsample)
                 assert (self.last_params is not None)
 
                 # Minimise the NLL of true ys using training parameters
@@ -748,7 +754,7 @@ class SAN(Model):
                     theta_hat = self.forward(xs, rsample=False)
                     x_hat = P(theta_hat, rsample=False)
 
-                _ = self.forward(x_hat, rsample=False)
+                _ = self.forward(x_hat, True, rsample=False)
                 post_prob = self.likelihood.log_prob(theta_hat, self.last_params)
 
                 loss = -post_prob.sum(-1).mean(0)
@@ -831,11 +837,12 @@ class SAN(Model):
         x = self._preprocess_sample_input(x_in, n_samples, errs)
         B = int(x.size(0) / N)
 
-        samples = self(x, rsample)  # [B*N, data_dim]
+        samples = self(x, True, rsample)  # [B*N, data_dim]
         rsamples = samples.reshape(B, n_samples, self.data_dim)  # [B, N, data_dim]
 
         assert self.last_params is not None
         lps = self.likelihood.log_prob(samples, self.last_params).sum(-1)  #[B*N]
+        self.last_params = None  # remove references to GPU memory
         rlps = lps.reshape(B, N)  # [B, N]
 
         # [B, 1, data_dim]:

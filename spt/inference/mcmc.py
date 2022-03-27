@@ -35,7 +35,7 @@ import spt.config as cfg
 
 from spt.types import Tensor
 
-__all__ = ["RWMH", "RWMH_sampler", "HMC", "HMC_sampler"]
+__all__ = ["RWMH", "RWMH_sampler", "HMC", "HMC_sampler", "HMC_optimiser"]
 
 
 def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
@@ -248,6 +248,64 @@ def HMC(f: Callable[[Tensor], Tensor], initial_pos: Tensor,
         yield pos
 
 
+def HMC_optimiser(f: Callable[[Tensor], Tensor],
+                  N: int = 1000, B: int = 1, chains: int = 10000, dim: int = 1,
+                  initial_pos: Tensor = None,
+                  rho: float = 1e-2, L: int = 10, alpha: float = 1.1,
+                  logging_freq: int = 10, bounds: Optional[Tensor] = None,
+                  device: t.device = None, dtype: t.dtype = None) -> Tensor:
+    """Finds the maximum point of the target function / distribution.
+
+    Aims to have lower memory consumption by not storing all samples.
+    """
+    logging.info('Beginning HMC optimisation')
+    start = time.time()
+
+    init = initial_pos
+    assert N is not None, "Number of samples to draw omitted"
+
+    if initial_pos is None:
+        assert B is not None, "batch size omitted"
+        assert chains is not None, "number of chains omitted"
+        assert dim is not None, "number of dimensions omitted"
+        init = t.randn((B, chains, dim), device=device, dtype=dtype)
+    else:
+        B, chains, dim = initial_pos.shape
+    assert init is not None
+
+    if bounds is not None:
+        init = init.clamp(bounds[..., 0], bounds[..., 1])
+
+    max_pos, prev_obj = None, None
+    assert init is not None
+
+    with Progress() as prog:
+        sampler = HMC(f, init, rho, L, alpha, bounds)
+        sample_t = prog.add_task("Optiising...", total=N)
+
+        for (pos, i) in zip(sampler, range(N)):
+            pos = pos.reshape(B, chains, dim)
+            with t.no_grad():
+                obj = f(pos)
+            assert obj.shape == (B, chains)
+            idx = t.argmax(obj, dim=-1).unsqueeze(-1)
+            pidx = idx.unsqueeze(-1).expand(B, 1, dim)
+            this_obj = obj.gather(1, idx)
+            this_pos = pos.gather(1, pidx).squeeze(-2)
+            if max_pos is None:
+                max_pos, prev_obj = this_pos, this_obj
+                continue
+            max_pos = t.where(this_obj > prev_obj, this_pos, max_pos)
+
+            if i % logging_freq == 0:
+                prog.update(sample_t, advance=logging_freq)
+
+    assert max_pos.shape == (B, dim)
+    duration = time.time() - start
+    logging.info(f'Completed {N*chains:,} samples across {B} batches in {duration:.2f} seconds')
+    return max_pos
+
+
 def HMC_sampler(f: Callable[[Tensor], Tensor],
                 N: int = 1000, B: int = 1, chains: int = 100000, dim: int = 1,
                 initial_pos: Tensor = None,
@@ -313,7 +371,6 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
 
     samples = t.empty((N, B, chains, dim), device=device, dtype=dtype)
     max_pos, prev_obj = None, None
-    assert init is not None
 
     with Progress() as prog:
         burn_t = prog.add_task("Burning-in...", total=burn)
