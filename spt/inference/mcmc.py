@@ -253,7 +253,8 @@ def HMC_optimiser(f: Callable[[Tensor], Tensor],
                   initial_pos: Tensor = None,
                   rho: float = 1e-2, L: int = 10, alpha: float = 1.1,
                   logging_freq: int = 10, bounds: Optional[Tensor] = None,
-                  device: t.device = None, dtype: t.dtype = None) -> Tensor:
+                  device: t.device = None, dtype: t.dtype = None,
+                  quiet: bool = False) -> Tensor:
     """Finds the maximum point of the target function / distribution.
 
     Aims to have lower memory consumption by not storing all samples.
@@ -279,7 +280,7 @@ def HMC_optimiser(f: Callable[[Tensor], Tensor],
     max_pos, prev_obj = None, None
     assert init is not None
 
-    with Progress() as prog:
+    with Progress(disable=quiet) as prog:
         sampler = HMC(f, init, rho, L, alpha, bounds)
         sample_t = prog.add_task("Optiising...", total=N)
 
@@ -313,7 +314,8 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
                 rho: float = 1e-2, L: int = 10, alpha: float = 1.1,
                 find_max: bool = False, logging_freq: int = 10,
                 bounds: Optional[Tensor] = None,
-                device: t.device = None, dtype: t.dtype = None
+                device: t.device = None, dtype: t.dtype = None,
+                quiet: bool = False
                 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
     """Batched Hamiltonian Monte Carlo sampler
 
@@ -372,7 +374,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
     samples = t.empty((N, B, chains, dim), device=device, dtype=dtype)
     max_pos, prev_obj = None, None
 
-    with Progress() as prog:
+    with Progress(disable=quiet) as prog:
         burn_t = prog.add_task("Burning-in...", total=burn)
 
         # burn in phase

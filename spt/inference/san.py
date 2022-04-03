@@ -29,7 +29,7 @@ import torch.nn.functional as F
 from abc import abstractmethod
 from typing import Any, Callable, Optional, Type
 from torch.utils.data import DataLoader
-from torch.distributions import Categorical, Normal, MixtureSameFamily
+from torch.distributions import Beta, Categorical, Normal, MixtureSameFamily
 
 import spt.config as cfg
 
@@ -104,7 +104,6 @@ class TruncatedLikelihood:
         # Return the upper bound
         raise NotImplementedError
 
-
 class Gaussian(SAN_Likelihood):
     """Univariate Gaussian likelihood for each dimension"""
 
@@ -150,6 +149,105 @@ class Laplace(SAN_Likelihood):
                 *self._extract_params(params)).rsample()
 
 
+class MoB(SAN_Likelihood, TruncatedLikelihood):
+    """Models every dimension with a K-component mixture of Beta distributions"""
+
+    def __init__(self, K: int, lims: Tensor, mult_eps: float=1e-4,
+                 abs_eps: float=1e-4):
+        """Mixture of Beta distributions.
+
+        Args:
+            K: number of mixture components.
+            lims: [0, 1] limits on each of the dimensions; size [D, 2] (min, max)
+            mult_eps: multiplicative stabilisation term
+            abs_eps: additive stabilisation term
+        """
+        self.K = K
+        self.mult_eps = mult_eps
+        self.abs_eps = abs_eps
+        self._lower, self._upper = lims[..., 0].detach(), lims[..., 1].detach()
+
+    supports_lim = True
+    name: str = "MoB"
+
+    @property
+    def lower(self) -> Tensor:
+        return self._lower
+
+    @property
+    def upper(self) -> Tensor:
+        return self._upper
+
+    def to(self, device: t.device = None, dtype: t.dtype = None):
+        self._lower = self._lower.to(device, dtype).detach()
+        self._upper = self._upper.to(device, dtype).detach()
+
+    def n_params(self) -> int:
+        return 3 * self.K  # concentration 1 & 2, mixture weight.
+
+    def _extract_params(self, params: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """Extracts the mixture model parameters from the tensor returned from
+        the network
+
+        Returns: concentration 1 [B, K], concentration 2 [B, K], weights [B, K]
+        """
+        f = lambda x: x.squeeze(-1)
+        B = params.shape[:-2]  # -1
+        c1, c2, k = params.reshape(*B, -1, self.K, 3).tensor_split(3, -1)
+        # return f(F.softplus(c1)), f(F.softplus(c2)), f(k)
+        return f(squareplus_f(c1)), f(squareplus_f(c2)), f(k)
+
+    def _stabilise(self, S: Tensor) -> Tensor:
+        while not S.gt(0.).all():
+            S = t.where(S.le(0.), S.abs()*(1.+self.mult_eps)+self.abs_eps, S)
+            # S = S.abs()*(1.+self.mult_eps) + self.abs_eps
+        return S
+
+    def _stable_betas(self, c1: Tensor, c2: Tensor) -> Beta:
+        try:
+            return Beta(c1, c2)
+        except ValueError:
+            return Beta(*map(self._stabilise, (c1, c2)))
+
+    def _bmm_from_params(self, params: Tensor) -> MixtureSameFamily:
+        c1, c2, k = self._extract_params(params)
+        cat = Categorical(logits=k)
+        norms = self._stable_betas(c1, c2)
+        return MixtureSameFamily(cat, norms)
+
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+        return self._bmm_from_params(params).log_prob(value)
+
+    def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
+        return self._bmm_from_params(params).sample()
+
+    def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
+        """Warning: this is not true reparametrised sampling: for that we
+        would need to average over each of the mixture components in proportion
+        to the parameters of the categorical distribution. Consequently, don't
+        use this to learn the logits (k) parameters. It merely allows us to do
+        HMC with this distribution.
+        """
+        sample_shape = t.Size()
+        c1, c2, k = self._extract_params(params)
+        gather_dim = len(loc.shape) - 1
+        es = t.Size([])
+
+        mix_sample = Categorical(logits=k).sample()
+        mix_shape = mix_sample.shape
+
+        comp_samples = self._stable_betas(c1, c2).rsample(sample_shape)
+
+        # gather along the k dimension
+        mix_sample_r = mix_sample.reshape(
+            mix_shape + t.Size([1] * (len(es) + 1)))
+        mix_sample_r = mix_sample_r.repeat(
+            t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
+
+        samples = t.gather(comp_samples, gather_dim, mix_sample_r)
+        return samples.squeeze(gather_dim)
+
+
 class MoG(SAN_Likelihood):
     """Models every dimension with a K-component mixture of Gaussians"""
 
@@ -189,15 +287,15 @@ class MoG(SAN_Likelihood):
 
     def _stable_norms(self, loc: Tensor, scale: Tensor) -> Normal:
         try:
-            return t.distributions.Normal(loc, scale)
+            return Normal(loc, scale)
         except ValueError:
-            return t.distributions.Normal(loc, self._stabilise(scale))
+            return Normal(loc, self._stabilise(scale))
 
     def _gmm_from_params(self, params: Tensor) -> MixtureSameFamily:
         loc, scale, k = self._extract_params(params)
-        cat = t.distributions.Categorical(logits=k)
+        cat = Categorical(logits=k)
         norms = self._stable_norms(loc, scale)
-        return t.distributions.MixtureSameFamily(cat, norms)
+        return MixtureSameFamily(cat, norms)
 
     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         return self._gmm_from_params(params).log_prob(value)
@@ -217,7 +315,7 @@ class MoG(SAN_Likelihood):
         gather_dim = len(loc.shape) - 1
         es = t.Size([])
 
-        mix_sample = t.distributions.Categorical(logits=k).sample()
+        mix_sample = Categorical(logits=k).sample()
         mix_shape = mix_sample.shape
 
         comp_samples = self._stable_norms(loc, scale).rsample(sample_shape)
@@ -549,6 +647,8 @@ class SAN(Model):
         if mp.device == t.device('cuda'):
             self.to(mp.device, mp.dtype)
             self.likelihood.to(mp.device, mp.dtype)
+        else:
+            self.likelihood.to(t.device('cpu'), mp.dtype)
 
         # Strange mypy error requires this to be put here although it is
         # perfectly well defined and typed in the super class ¯\_(ツ)_/¯
@@ -741,6 +841,8 @@ class SAN(Model):
 
         opt = t.optim.Adam(self.parameters(), lr=lr, weight_decay=decay)
 
+        self.epochs = epochs
+
         start_e = self.attempt_checkpoint_recovery(ip)
         for e in range(start_e, epochs):
             for i, (x, y) in enumerate(train_loader):
@@ -770,6 +872,7 @@ class SAN(Model):
             self.checkpoint(ip.ident)
 
         self.eval()
+        self.epochs = self.mp.epochs
 
     def _preprocess_sample_input(self, x: tensor_like, n_samples: int = 1000,
                                  errs: Optional[tensor_like] = None) -> Tensor:

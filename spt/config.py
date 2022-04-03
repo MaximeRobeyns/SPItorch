@@ -131,7 +131,7 @@ class InferenceParams(inference.InferenceParams):
 
     # The number of epochs of the posterior update procedure to run using
     # simulated data
-    update_sim_epochs: int = 10
+    update_sim_epochs: int = 5
     # The number of samples to use in each update step.
     # (note: quickly increases memory requirements)
     update_sim_K: int = 1
@@ -217,13 +217,19 @@ class SANParams(san.SANParams):
     # features passed between sequential blocks
     sequence_features: int = 16
 
-    likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+    # likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+    likelihood: Type[san.SAN_Likelihood] = san.MoB
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
         'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
-        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
-        'validate_args': False,
+        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4
     }
+
+    # likelihood_kwargs: Optional[dict[str, Any]] = {
+    #     'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+    #     'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
+    #     'validate_args': False,
+    # }
 
     # Whether to use batch norm
     layer_norm: bool = True

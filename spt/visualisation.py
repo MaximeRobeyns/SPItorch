@@ -77,7 +77,7 @@ def _plot_filters(obs: obs_dict_t, ymin: float, ymax: float):
         w, t = f.wavelength.copy(), f.transmission.copy()
         t = t / t.max()
         t = 10**(0.2*(np.log10(ymax/ymin)))*t * ymin
-        plt.loglog(w, t, lw=3, color=colours['b'], alpha=0.7)
+        plt.loglog(w, t, lw=0.7, color=colours['b'], alpha=0.7)
 
 
 def _get_observer_frame_wavelengths(model: SedModel, sps: SSPBasis
@@ -359,7 +359,6 @@ def plot_corner(samples: Union[np.ndarray, list[np.ndarray]],
     fig.patch.set_facecolor('white')
 
     log.setLevel(l)
-
 
 def plot_posteriors(posterior_ys: np.ndarray, true_ys: np.ndarray,
                     labels: list[str] = ForwardModelParams().ordered_free_params,
