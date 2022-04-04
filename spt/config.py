@@ -217,19 +217,18 @@ class SANParams(san.SANParams):
     # features passed between sequential blocks
     sequence_features: int = 16
 
-    # likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
-    likelihood: Type[san.SAN_Likelihood] = san.MoB
-
-    likelihood_kwargs: Optional[dict[str, Any]] = {
-        'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
-        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4
-    }
-
+    # likelihood: Type[san.SAN_Likelihood] = san.MoB
     # likelihood_kwargs: Optional[dict[str, Any]] = {
     #     'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
-    #     'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
-    #     'validate_args': False,
+    #     'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4
     # }
+
+    likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+    likelihood_kwargs: Optional[dict[str, Any]] = {
+        'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
+        'validate_args': False,
+    }
 
     # Whether to use batch norm
     layer_norm: bool = True
