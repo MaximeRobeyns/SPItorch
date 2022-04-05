@@ -36,6 +36,7 @@ from spt.utils import ConfigClass
 from spt.types import MCMCMethod, FittingMethod, ConcurrencyMethod, Tensor
 from spt.filters import Filter, FilterLibrary, FilterCheck
 from spt.inference import san
+from spt.inference import maf
 from spt.modelling import Parameter, ParamConfig
 from spt.modelling import build_obs_fn_t, build_model_fn_t, build_sps_fn_t
 
@@ -193,6 +194,39 @@ class DynestyParams(ConfigClass):
 
 
 # Machine learning inference --------------------------------------------------
+
+
+class MAFParams(maf.MAFParams):
+
+    epochs: int = 10
+
+    batch_size: int = 1024
+
+    dtype: t.dtype = t.float32
+
+    cond_dim: int = len(ForwardModelParams().filters)
+
+    data_dim: int = len(ForwardModelParams().free_params)
+
+    prior: maf.MAFPrior = maf.LogisticPrior
+
+    depth: int = 6
+
+    maf_depth: int = 4
+
+    maf_hidden_width: int = 256
+
+    maf_num_masks: int = 1
+
+    natural_ordering: bool = True
+
+    layer_norm: bool = True
+
+    opt_lr: float = 3e-3
+
+    opt_decay: float = 1e-4
+
+    limits = None
 
 
 # Parameters for approximate posterior
