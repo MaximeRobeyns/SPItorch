@@ -65,8 +65,8 @@ class CMADE(nn.Module):
 
     def __init__(self, in_features: int, cond_features: int, hidden_sizes: int,
                  out_features: int, num_masks: int = 1,
-                 natural_ordering: bool = True, dtype: t.dtype = None,
-                 device: t.device = None):
+                 natural_ordering: bool = True, layer_norm: bool = False,
+                 dtype: t.dtype = None, device: t.device = None):
         super().__init__()
         self.in_features = in_features
         self.cond_features = cond_features
@@ -91,16 +91,22 @@ class CMADE(nn.Module):
         self.net = []
         hs = [cond_features + in_features] + hidden_sizes + [out_features]
         for i, (h0, h1) in enumerate(zip(hs, hs[1:])):
-            self.net.extend([
-                MaskedLinear(h0, h1, self.masksets[i],
-                             device=device, dtype=dtype),
-                # WARNING: does this have an impact on the Jacobian?
-                # It is perhaps safer to leave it out.
-                nn.LayerNorm(h1),
-                nn.ReLU(),
-            ])
+            if layer_norm:
+                self.net.extend([
+                    MaskedLinear(h0, h1, self.masksets[i],
+                                device=device, dtype=dtype),
+                    nn.LayerNorm(h1),
+                    nn.ReLU(),
+                ])
+            else:
+                self.net.extend([
+                    MaskedLinear(h0, h1, self.masksets[i],
+                                device=device, dtype=dtype),
+                    nn.ReLU(),
+                ])
         self.net.pop()  # pop last activation
-        self.net.pop()  # pop LayerNorm too
+        if layer_norm:
+            self.net.pop()  # pop LayerNorm too
         self.net = nn.Sequential(*self.net).to(self.device, self.dtype)
 
 
@@ -237,6 +243,7 @@ class MAFBlock(nn.Module):
     def __init__(self, cond_dim: int, data_dim: int, hidden_width: int = 24,
                  depth: int = 4, num_masks: int = 1,
                  natural_ordering: bool = True, parity: int = 0,
+                 layer_norm: bool = False,
                  device: t.device = None, dtype: t.dtype = None):
         super().__init__()
         self.dim = data_dim
@@ -245,6 +252,7 @@ class MAFBlock(nn.Module):
                          hidden_sizes=[hidden_width] * depth,
                          out_features=data_dim*2,
                          num_masks=num_masks,
+                         layer_norm=layer_norm,
                          natural_ordering=natural_ordering,
                          device=device, dtype=dtype)
         self.parity = parity
@@ -252,21 +260,21 @@ class MAFBlock(nn.Module):
     def forward(self, c: Tensor, x: Tensor) -> tuple[Tensor, Tensor]:
         # Evaluate all xs in parallel: fast density estimation
         st = self.net(c, x)
-        s, T = st.split(self.dim, dim=1)
+        s, T = st.split(self.dim, dim=-1)
         z = x * t.exp(s) + T
-        z = z.flip(dims=(1,)) if self.parity == 1 else z
-        log_det = t.sum(s, dim=1)
+        z = z.flip(dims=(-1,)) if self.parity else z
+        log_det = t.sum(s, dim=-1)
         return z, log_det
 
     def backward(self, c: Tensor, z: Tensor) -> tuple[Tensor, Tensor]:
         # decode the x one at a time.
         x = t.zeros_like(z)
-        log_det = t.zeros(z.size(0), device=z.device, dtype=z.dtype)
-        z = z.flip(dims=(1,)) if self.parity == 1 else z
+        log_det = t.zeros(z.shape[:-1], device=z.device, dtype=z.dtype)
+        z = z.flip(dims=(-1,)) if self.parity else z
         for i in range(self.dim):
             st = self.net(c, x.clone())  # TODO: is clone necessary?
-            s, T = st.split(self.dim, dim=1)
-            x[:, i] = (z[..., i] - T[..., i]) * t.exp(-s[..., i])
+            s, T = st.split(self.dim, dim=-1)
+            x[..., i] = (z[..., i] - T[..., i]) * t.exp(-s[..., i])
             log_det += -s[..., i]
         return x, log_det
 
@@ -371,6 +379,7 @@ class MAF(Model):
                      hidden_width=mp.maf_hidden_width,
                      depth=mp.maf_depth, num_masks=mp.maf_num_masks,
                      natural_ordering=mp.natural_ordering, parity=i%2,
+                     layer_norm=mp.layer_norm,
                      device=mp.device, dtype=mp.dtype)
             for i in range(mp.depth)
         ]
@@ -391,8 +400,8 @@ class MAF(Model):
         return (f'{self.name} with {self.prior.name} base distribution '
                 f'consisting of {self.mp.depth} stacked MAFs, each with '
                 f'{self.mp.maf_depth} layers of width {self.mp.maf_hidden_width}'
-                f' with {"no" if self.mp.natural_ordering else ""} natural '
-                f'ordering, {"no" if self.mp.layer_norm else ""} layer norm'
+                f' with {"" if self.mp.natural_ordering else "no"} natural '
+                f'ordering, {"" if self.mp.layer_norm else "no"} layer norm'
                 f'trained for {self.mp.epochs} epochs with batches of size '
                 f'{self.mp.batch_size}, an Adam learning rate of {self.mp.opt_lr}'
                 f' and decay of {self.mp.opt_decay}.')
@@ -404,7 +413,7 @@ class MAF(Model):
                 f'd{self.mp.depth}_md{self.mp.maf_depth}_mhw_{self.mp.maf_hidden_width}'
                 f'_nm{self.mp.maf_num_masks}_no{self.mp.natural_ordering}_'
                 f'ln{self.mp.layer_norm}_lr{self.mp.opt_lr}'
-                f'_od{self.mp.opt_decay}_')
+                f'_od{self.mp.opt_decay}_e{self.mp.epochs}_')
         name += 'lim_' if self.mp.limits is not None else ''
         self.savepath_cached = f'{base}{name}{ident}.pt'
         return self.savepath_cached
