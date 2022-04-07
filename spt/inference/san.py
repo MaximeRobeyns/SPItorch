@@ -33,7 +33,7 @@ from torch.distributions import Beta, Categorical, Normal, MixtureSameFamily
 
 import spt.config as cfg
 
-from spt.inference import Model, ModelParams, InferenceParams
+from spt.inference import Model, ModelParams, InferenceParams, HMC_optimiser
 from spt.types import Tensor, tensor_like
 from spt.inference.utils import squareplus_f, TruncatedNormal
 
@@ -854,6 +854,68 @@ class SAN(Model):
 
                 with t.no_grad():
                     theta_hat = self.forward(xs, rsample=False)
+                    x_hat = P(theta_hat, rsample=False)
+
+                _ = self.forward(x_hat, True, rsample=False)
+                post_prob = self.likelihood.log_prob(theta_hat, self.last_params)
+
+                loss = -post_prob.sum(-1).mean(0)
+
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+
+                if i % logging_frequency == 0:
+                    logging.info((f'Objective at epoch: {e:02d}/{epochs:02d}'
+                                  f' iter: {i:04d}/{len(train_loader):04d} is '
+                                  f'{loss.detach().cpu().item()}'))
+            self.checkpoint(ip.ident)
+
+        self.eval()
+        self.epochs = self.mp.epochs
+
+    @typing.no_type_check
+    def hmc_retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
+                              P: Model, epochs: int, K: int, lr: float = 3e-4,
+                              decay: float = 1e-4, logging_frequency: int = 1000
+                              ) -> None:
+        """Perform the retraining procedure, using intermediate HMC updates to
+        generate training paris on-the-fly.
+        """
+        self.train()
+        t.random.seed()
+
+        opt = t.optim.Adam(self.parameters(), lr=lr, weight_decay=decay)
+        bounds = t.tensor(cfg.ForwardModelParams().free_param_lims(normalised=True),
+                          device=self.device, dtype=self.dtype)
+
+        def get_logpdf(xs: Tensor) -> Callable[[Tensor], Tensor]:
+            def logpdf(theta: Tensor) -> Tensor:
+                _ = P(theta, True)
+                return P.likelihood.log_prob(xs, P.last_params).sum(-1)
+            return logpdf
+
+        self.epochs = epochs
+        start_e = self.attempt_checkpoint_recovery(ip)
+        for e in range(start_e, epochs):
+            for i, (x, y) in enumerate(train_loader):
+                x, _ = self.preprocess(x, y)
+
+                xs = x.repeat_interleave(K, 0)
+                xs = xs.unsqueeze(-2).expand(-1, ip.hmc_update_C, ip.hmc_update_D)
+
+                logpdf = get_logpdf(xs)
+                initial_pos = self(xs)
+
+                theta_hat = HMC_optimiser(
+                    logpdf, N=ip.hmc_update_N, initial_pos=initial_pos,
+                    rho=ip.hmc_update_rho, L=ip.hmc_update_L,
+                    alpha=ip.hmc_update_alpha,
+                    bounds=bounds, device=self.device, dtype=self.dtype,
+                    quiet=True)
+                xs = None  # no longer needed on GPU memory
+
+                with t.no_grad():
                     x_hat = P(theta_hat, rsample=False)
 
                 _ = self.forward(x_hat, True, rsample=False)

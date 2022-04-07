@@ -144,6 +144,16 @@ class InferenceParams(inference.InferenceParams):
     update_real_K: int = 10
     update_real_ident: str = 'example_real_update'
 
+    # hmc update parameters
+    hmc_update_sim_epochs: int = 5
+    hmc_update_sim_K: int = 1
+    hmc_update_sim_ident: str = 'hmc_example_sim_update'
+    hmc_update_C: int = 100
+    hmc_update_D: int = len(ForwardModelParams().filters)
+    hmc_update_rho = 0.1
+    hmc_update_L = 2
+    hmc_update_alpha = 1.1
+
 
 # Prospector fitting parameters -----------------------------------------------
 
@@ -282,7 +292,8 @@ class SANParams(san.SANParams):
 class SANLikelihoodParams(san.SANParams):
 
     # Number of epochs to train for (offline training)
-    epochs: int = 10
+    # epochs: int = 10
+    epochs: int = 5
 
     batch_size: int = 1024
 
@@ -295,15 +306,18 @@ class SANLikelihoodParams(san.SANParams):
     cond_dim: int = len(ForwardModelParams().free_params)
 
     # shape of the network 'modules'
-    module_shape: list[int] = [1024, 1024]
+    # module_shape: list[int] = [1024, 1024]
+    module_shape: list[int] = [200,]
 
     # features passed between sequential blocks
-    sequence_features: int = 16
+    # sequence_features: int = 16
+    sequence_features: int = 8
 
     likelihood: Type[san.SAN_Likelihood] = san.MoG
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
+        # 'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
+        'K': 3, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
     }
 
     # Whether to use batch norm

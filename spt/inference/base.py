@@ -111,6 +111,39 @@ class InferenceParams(ConfigClass):
     def update_real_ident(self) -> str:
         return "real_update"
 
+    # HMC update ---------------------------------------------------------------
+
+    @property
+    def hmc_update_sim_epochs(self) -> int:
+        return 5
+    @property
+    def hmc_update_sim_K(self) -> int:
+        return 1
+    @property
+    def hmc_update_sim_ident(self) -> str:
+        return 'hmc_example_sim_update'
+    @property
+    def hmc_update_N(self) -> float:
+        return 5
+    @property
+    def hmc_update_C(self) -> int:
+        return 100
+
+    @property
+    @abstractmethod
+    def hmc_update_D(self) -> int:
+        raise NotImplementedError
+
+    @property
+    def hmc_update_rho(self) -> float:
+        return 0.1
+    @property
+    def hmc_update_L(self) -> int:
+        return 2
+    @property
+    def hmc_update_alpha(self) -> float:
+        return 1.1
+
 
 class ModelParams(ConfigClass, ABC):
 

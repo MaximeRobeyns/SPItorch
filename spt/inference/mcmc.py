@@ -259,8 +259,9 @@ def HMC_optimiser(f: Callable[[Tensor], Tensor],
 
     Aims to have lower memory consumption by not storing all samples.
     """
-    logging.info('Beginning HMC optimisation')
-    start = time.time()
+    if not quiet:
+        logging.info('Beginning HMC optimisation')
+        start = time.time()
 
     init = initial_pos
     assert N is not None, "Number of samples to draw omitted"
@@ -280,10 +281,9 @@ def HMC_optimiser(f: Callable[[Tensor], Tensor],
     max_pos, prev_obj = None, None
     assert init is not None
 
-    with Progress(disable=quiet) as prog:
-        sampler = HMC(f, init, rho, L, alpha, bounds)
-        sample_t = prog.add_task("Optiising...", total=N)
-
+    sampler = HMC(f, init, rho, L, alpha, bounds)
+    # yes, code repetition, but it's late and I don't have time
+    if quiet:
         for (pos, i) in zip(sampler, range(N)):
             pos = pos.reshape(B, chains, dim)
             with t.no_grad():
@@ -297,13 +297,31 @@ def HMC_optimiser(f: Callable[[Tensor], Tensor],
                 max_pos, prev_obj = this_pos, this_obj
                 continue
             max_pos = t.where(this_obj > prev_obj, this_pos, max_pos)
+    else:
+        with Progress() as prog:
+            sample_t = prog.add_task("Optiising...", total=N)
 
-            if i % logging_freq == 0:
-                prog.update(sample_t, advance=logging_freq)
+            for (pos, i) in zip(sampler, range(N)):
+                pos = pos.reshape(B, chains, dim)
+                with t.no_grad():
+                    obj = f(pos)
+                assert obj.shape == (B, chains)
+                idx = t.argmax(obj, dim=-1).unsqueeze(-1)
+                pidx = idx.unsqueeze(-1).expand(B, 1, dim)
+                this_obj = obj.gather(1, idx)
+                this_pos = pos.gather(1, pidx).squeeze(-2)
+                if max_pos is None:
+                    max_pos, prev_obj = this_pos, this_obj
+                    continue
+                max_pos = t.where(this_obj > prev_obj, this_pos, max_pos)
+
+                if i % logging_freq == 0:
+                    prog.update(sample_t, advance=logging_freq)
 
     assert max_pos.shape == (B, dim)
-    duration = time.time() - start
-    logging.info(f'Completed {N*chains:,} samples across {B} batches in {duration:.2f} seconds')
+    if not quiet:
+        duration = time.time() - start
+        logging.info(f'Completed {N*chains:,} samples across {B} batches in {duration:.2f} seconds')
     return max_pos
 
 
