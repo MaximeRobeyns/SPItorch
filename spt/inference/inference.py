@@ -80,8 +80,17 @@ if __name__ == '__main__':
 
     # HMC update procedure with simulated data -------------------------------
 
+    utrain_loader, _ = load_simulated_data(
+        path=ip.dataset_loc,
+        split_ratio=ip.split_ratio,
+        batch_size=850,
+        phot_transforms=[lambda x: t.from_numpy(np.log(x))],
+        theta_transforms=[get_norm_theta(fp)],
+    )
+    logging.info('Created smaller data loaders')
+
     ip.ident = ip.hmc_update_sim_ident
-    Q.hmc_retrain_procedure(train_loader, ip, P=P,
+    Q.hmc_retrain_procedure(utrain_loader, ip, P=P,
                             epochs=ip.hmc_update_sim_epochs,
                             K=ip.hmc_update_sim_K, lr=3e-4, decay=1e-4)
     logging.info('HMC update on sim data complete.')
