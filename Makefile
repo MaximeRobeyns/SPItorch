@@ -62,13 +62,13 @@ docs: ## To compile the documentation (requires Docker)
 	@./docs/writedocs.sh
 
 docsimg: ## To explicitly build the Docker image for writing documentation.
-	@docker build -f ./docs/Dockerfile -t agnfinderdocs ./docs
+	@docker build -f ./docs/Dockerfile -t spitorchdocs ./docs
 
 .PHONY: install
 install: ## To install everything (requires internet connection)
 	@./bin/install.sh
 
-kernel:  ## To setup a Jupyter kernel to run notebooks in AGNFinder virtual env
+kernel:  ## To setup a Jupyter kernel to run notebooks in SPItorch virtual env
 	python -m ipykernel install --user --name agnvenv \
 		--display-name "SPItorch (Python 3.9)"
 
@@ -76,40 +76,19 @@ lab: ## To start a Jupyter Lab server
 	@export SPS_HOME=$(shell pwd)/deps/fsps
 	jupyter lab --notebook-dir=. --ip=0.0.0.0  --port 8881 # --collaborative --no-browser
 
+san: ## To run the SAN inference code specifically
+	@export SPS_HOME=$(shell pwd)/deps/fsps
+	@python spt/inference/san.py
+
+inf: ## To run the main inference code
+	@export SPS_HOME=$(shell pwd)/deps/fsps
+	@python spt/inference/inference.py
+
+figures:  ## To generate all the paper's figures
+	# TODO find all targets here and create appropriate reclips
+	@python figures/code/likelihood_evaluation.py
+
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-	# @./bin/help.sh
 
 .PHONY: alltest cvae docsimg docs inf kernel lab made mypy qt san sim test
-
-# sim: ## To run the main sampling / simulation program
-# 	@source setup.sh
-# 	@python agnfinder/simulation/simulation.py
-#
-# saveparams:
-# 	@source setup.sh
-# 	@python bin/to_hdf.py
-#
-# params: ## Parameter estimation (median and mode) for real world observations
-# 	@source setup.sh
-# 	@python agnfinder/inference/parameter_estimation.py
-#
-# inf: ## To run the main inference code
-# 	@source setup.sh
-# 	@python agnfinder/inference/inference.py
-#
-# made: ## To run the MADE inference code specifically
-# 	@source setup.sh
-# 	@python agnfinder/inference/made.py
-#
-# san: ## To run the SAN inference code specifically
-# 	@source setup.sh
-# 	@python agnfinder/inference/san.py
-#
-# mcmc: ## To run the MCMC inference code specifically
-# 	@source setup.sh
-# 	@python agnfinder/inference/mcmc.py
-#
-# cvae: ## To run the CVAE inference code specifically
-# 	@source setup.sh
-# 	@python agnfinder/inference/cvae.py

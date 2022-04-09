@@ -119,11 +119,17 @@ data/cpz_paper_sample_week3.parquet
 data/DES_VIDEO_v1.0.1.fits
 data/nbrun
 data/cubes
+data/uci
 results/**/*.pt
 results/**/*.png
 *.parquet
 
 license_boilerplate.txt
+
+figures
+gen_output
+planning.org
+planning.html
 
 deps
 agnvenv
@@ -132,3 +138,5 @@ sync
 
 .tabs
 .pdfs
+
+planning.org
