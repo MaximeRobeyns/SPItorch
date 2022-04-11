@@ -20,6 +20,7 @@
 import math
 import numpy as np
 import corner
+import numbers
 import logging
 import matplotlib.pyplot as plt
 
@@ -407,7 +408,8 @@ def plot_posteriors(posterior_ys: np.ndarray, true_ys: np.ndarray,
 def ppplot(xs: np.ndarray, ys: np.ndarray,
            labels: list[str] = ForwardModelParams().ordered_free_params,
            title: str = "", description: str = "", base_size: int = 8):
-    """Create a probability-probability (p-p) plot of two (perhaps empirical)
+    # NOTE: this is probably completely wrong... ignore this function
+    """Create a probability-probability (p-p) plot of two (empirical)
     cumulative distributions.
 
     Args:
@@ -424,11 +426,90 @@ def ppplot(xs: np.ndarray, ys: np.ndarray,
     ax.plot(diag, diag, ls='--', c='k', label='diag')
     for i in range(xs.shape[1]):
         xi, yi = xs[:, i], ys[:, i]
-        x_ecdf = np.sort(xi) - min(xi) / (max(xi) - min(xi))
-        y_ecdf = np.sort(yi) - min(yi) / (max(yi) - min(yi))
+        x_ecdf = (np.sort(xi) - min(xi)) / (max(xi) - min(xi))
+        y_ecdf = (np.sort(yi) - min(yi)) / (max(yi) - min(yi))
         ax.plot(x_ecdf, y_ecdf, label=labels[i])
     ax.set_xlim(0., 1.)
     ax.set_ylim(0., 1.)
+    ax.legend()
+    fig.text(0.05, 1.04, s=title, fontfamily='sans-serif',
+             fontweight='demibold', fontsize=16)
+    fig.text(0.05, 1.005, s=description, fontfamily='sans-serif',
+             fontweight='normal', fontsize=10)
+    fig.patch.set_facecolor('white')
+    fig.tight_layout()
+
+
+def qqplot(xs: np.ndarray, ys: np.ndarray,
+           labels: list[str] = None, title: str = "", description: str = "",
+           base_size: int = 8, quantiles: Optional[Union[int, list[float]]] = None,
+           interpolation: str = 'nearest', rug: bool = False,
+           rug_length: float = 0.05, rug_kwargs = None, **kwargs):
+    """Draw a quantile-quantile (q-q) plot for x against y
+
+    Args:
+        xs: an [N, D] array of points
+        ys: an [N, D] array of points
+        labels: a list of labels for each dimension [D]
+        title: plot title
+        description: plot description
+        quantiles: int or array-like, optional. Quantiles to include in the
+            plot. This can be an array of quantiles, in which case only the
+            specified quantiles of `x` and `y` will be plotted. If this is an
+            int `n`, then the quantiles will be `n` evenly spaced points between
+            0 and 1. If this is None, then `min(len(x), len(y))` evenly spaced
+            quantiles between 0 and 1 will be computed.
+        interpolation: {‘linear’, ‘lower’, ‘higher’, ‘midpoint’, ‘nearest’}
+            Specify the interpolation method used to find quantiles when
+            `quantiles` is an int or None. See the documentation for
+            numpy.quantile().
+
+        rug: if True, draw a rug plot representing both samples on the
+            horizontal and vertical axes. If False, no rug plot is drawn.
+        rug_length: specifies the length of the rug plot lines as a fraction of
+            the total vertical or horizontal length.
+        rug_kwargs: dict of keyword arguments to pass to
+            matplotlib.axes.Axes.axvline() and matplotlib.axes.Axes.axhline()
+            when drawing rug plots.
+        kwargs: dict of keyword arguments to pass to
+            matplotlib.axes.Axes.scatter() when drawing the q-q plot.
+    """
+
+    assert xs.shape == ys.shape
+
+    fig, ax = plt.subplots(figsize=(base_size, base_size), dpi=150)
+
+    minimum = min(xs.min(), ys.min())
+    maximum = max(xs.max(), ys.max())
+    diag = np.linspace(minimum, maximum, 100)
+    ax.plot(diag, diag, ls='--', c='k', lw=0.5, label='diag')
+
+    if quantiles is None:
+        quantiles = min(xs.shape[0], ys.shape[0])
+
+    # compute quantiles of the two samples
+    if isinstance(quantiles, numbers.Integral):
+        quantiles = np.linspace(0, 1, num=int(quantiles))
+    else:
+        quantiles = np.atleast_1d(np.sort(quantiles))
+
+    for i in range(xs.shape[1]):
+        x_quantiles = np.quantile(xs[:, i], quantiles, interpolation=interpolation)
+        y_quantiles = np.quantile(ys[:, i], quantiles, interpolation=interpolation)
+
+        if rug:
+            rp = dict(ymax=rug_length, c='gray', alpha=0.5)
+            rug_x_params = {'ymin': 0, 'ymax': rug_length} | rp | rug_kwargs
+            rug_y_params = {'xmin': 0, 'xmax': rug_length} | rp | rug_kwargs
+
+            for point in xs[:, i]:
+                ax.axvline(point, **rug_x_params)
+
+            for point in ys[:, i]:
+                ax.axhline(point, **rug_y_params)
+
+        ax.plot(x_quantiles, y_quantiles, label=labels[i], **kwargs)
+
     ax.legend()
     fig.text(0.05, 1.04, s=title, fontfamily='sans-serif',
              fontweight='demibold', fontsize=16)
