@@ -229,6 +229,7 @@ class Model(nn.Module, metaclass=ABCMeta):
             cls.__repr__ = Model._wrap_lines(cls.__repr__)
             cls.offline_train = Model._save_results(cls.offline_train)
             cls.retrain_procedure = Model._save_results(cls.retrain_procedure)
+            cls.hmc_retrain_procedure = Model._save_results(cls.hmc_retrain_procedure)
             cls._sub_init = True
         return cls
 
@@ -430,6 +431,17 @@ class Model(nn.Module, metaclass=ABCMeta):
     def retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
                           *args, **kwargs):
         """Update procedure, usually using real data.
+
+        Args:
+            train_loader: DataLoader to load the training data.
+            ip: the inference parameters describing the training procedure.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def hmc_retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
+                          *args, **kwargs):
+        """Update procedure, using HMC to improve training data.
 
         Args:
             train_loader: DataLoader to load the training data.

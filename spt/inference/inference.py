@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader
 
 from spt.types import Tensor
 from spt.inference.san import SAN, PModel
-from spt.load_photometry import load_simulated_data, get_norm_theta
+from spt.load_photometry import load_simulated_data, get_norm_theta, load_real_data
 
 
 if __name__ == '__main__':
@@ -78,19 +78,39 @@ if __name__ == '__main__':
     #                     K=ip.update_real_K, lr=3e-4, decay=1e-4)
     # logging.info('Updated on real data')
 
-    # HMC update procedure with simulated data -------------------------------
+    # # HMC update procedure with simulated data -------------------------------
 
-    utrain_loader, _ = load_simulated_data(
-        path=ip.dataset_loc,
+    # utrain_loader, _ = load_simulated_data(
+    #     path=ip.dataset_loc,
+    #     split_ratio=ip.split_ratio,
+    #     batch_size=750,
+    #     phot_transforms=[lambda x: t.from_numpy(np.log(x))],
+    #     theta_transforms=[get_norm_theta(fp)],
+    # )
+    # logging.info('Created smaller data loaders')
+
+    # ip.ident = ip.hmc_update_sim_ident
+    # Q.hmc_retrain_procedure(utrain_loader, ip, P=P,
+    #                         epochs=ip.hmc_update_sim_epochs,
+    #                         K=ip.hmc_update_sim_K, lr=3e-4, decay=1e-4, 
+    #                         logging_frequency=10)
+    # logging.info('HMC update on sim data complete.')
+
+    # HMC update procedure with real data -------------------------------
+
+    rtrain_loader, _ = load_real_data(
+        path=ip.catalogue_loc,
+        filters=fp.filters,
         split_ratio=ip.split_ratio,
-        batch_size=850,
-        phot_transforms=[lambda x: t.from_numpy(np.log(x))],
-        theta_transforms=[get_norm_theta(fp)],
+        batch_size=750,
+        transforms=[t.from_numpy],
+        x_transforms=[np.log],
     )
-    logging.info('Created smaller data loaders')
+    logging.info('Created real data loader')
 
-    ip.ident = ip.hmc_update_sim_ident
-    Q.hmc_retrain_procedure(utrain_loader, ip, P=P,
-                            epochs=ip.hmc_update_sim_epochs,
-                            K=ip.hmc_update_sim_K, lr=3e-4, decay=1e-4)
-    logging.info('HMC update on sim data complete.')
+    ip.ident = ip.hmc_update_real_ident
+    Q.hmc_retrain_procedure(rtrain_loader, ip, P=P,
+                            epochs=ip.hmc_update_real_epochs,
+                            K=ip.hmc_update_real_K, lr=3e-4, decay=1e-4, 
+                            logging_frequency=10)
+    logging.info('HMC update on real data complete.')
