@@ -901,6 +901,7 @@ class SAN(Model):
             for i, (x, y) in enumerate(train_loader):
                 x, _ = self.preprocess(x, y)
 
+                # expand to chains
                 xs = x.repeat_interleave(K, 0)
                 xs = xs.unsqueeze(-2).expand(-1, ip.hmc_update_C, ip.hmc_update_D)
 
@@ -915,10 +916,12 @@ class SAN(Model):
                     quiet=True)
                 xs = None  # no longer needed on GPU memory
 
-                with t.no_grad():
-                    x_hat = P(theta_hat, rsample=False)
+                # TODO: remove, old code when we optimised wrt x_hat
+                # with t.no_grad():
+                #     x_hat = P(theta_hat, rsample=False)
+                # _ = self.forward(x_hat, True, rsample=False)
 
-                _ = self.forward(x_hat, True, rsample=False)
+                _ = self.forward(x, True, rsample=False)
                 post_prob = self.likelihood.log_prob(theta_hat, self.last_params)
 
                 loss = -post_prob.sum(-1).mean(0)
