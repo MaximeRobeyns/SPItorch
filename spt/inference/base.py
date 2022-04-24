@@ -144,6 +144,16 @@ class InferenceParams(ConfigClass):
     def hmc_update_alpha(self) -> float:
         return 1.1
 
+    @property
+    def hmc_update_real_epochs(self) -> int:
+        return 5
+    @property
+    def hmc_update_real_K(self) -> int:
+        return 1
+    @property
+    def hmc_update_real_ident(self) -> str:
+        return 'hmc_example_real_update'
+
 
 class ModelParams(ConfigClass, ABC):
 

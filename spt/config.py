@@ -147,13 +147,16 @@ class InferenceParams(inference.InferenceParams):
     # hmc update parameters
     hmc_update_sim_epochs: int = 5
     hmc_update_sim_K: int = 1
-    hmc_update_sim_ident: str = 'hmc_example_sim_update'
+    hmc_update_sim_ident: str = 'hmc_example_sim_update_simplified'
     hmc_update_C: int = 100
     hmc_update_D: int = len(ForwardModelParams().filters)
     hmc_update_rho = 0.1
     hmc_update_L = 2
     hmc_update_alpha = 1.1
 
+    hmc_update_real_epochs: int = 5
+    hmc_update_real_K: int = 1
+    hmc_update_real_ident: str = 'hmc_example_real_update_simplified'
 
 # Prospector fitting parameters -----------------------------------------------
 
@@ -292,8 +295,7 @@ class SANParams(san.SANParams):
 class SANLikelihoodParams(san.SANParams):
 
     # Number of epochs to train for (offline training)
-    # epochs: int = 10
-    epochs: int = 5
+    epochs: int = 10
 
     batch_size: int = 1024
 
