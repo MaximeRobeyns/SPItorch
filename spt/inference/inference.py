@@ -61,61 +61,50 @@ if __name__ == '__main__':
     lp = cfg.SANLikelihoodParams()
     P = PModel(lp)
     logging.info(f'Initialised neural likelihood: {P.name}')
-    # ip.ident = "ML_likelihood"
-    ip.ident = "ML_likelihood_small"
 
+    ip.ident = "ML_likelihood"
     P.offline_train(train_loader, ip)
     logging.info('ML training of neural likelihood complete.')
 
-    # # Update procedure with simulated data ------------------------------------
-
-    # ip.ident = ip.update_sim_ident
-    # Q.retrain_procedure(train_loader, ip, P=P, epochs=ip.update_sim_epochs,
-    #                     K=ip.update_sim_K, lr=3e-4, decay=1e-4)
-    # logging.info('Updated on simulated data')
-
-    # # Update procedure with real data -----------------------------------------
-
-    # ip.ident = ip.update_real_ident
-    # Q.retrain_procedure(train_loader, ip, P=P, epochs=ip.update_real_epochs,
-    #                     K=ip.update_real_K, lr=3e-4, decay=1e-4)
-    # logging.info('Updated on real data')
+    # =========================================================================
+    # Temporarily commented out for cluster job:
+    # =========================================================================
 
     # # HMC update procedure with simulated data -------------------------------
 
-    # Here we create smaller data loaders for the HMC update procedure, due to
-    # VRAM considerations.
-    utrain_loader, _ = load_simulated_data(
-        path=ip.dataset_loc,
-        split_ratio=ip.split_ratio,
-        batch_size=750,
-        phot_transforms=[lambda x: t.from_numpy(np.log(x))],
-        theta_transforms=[get_norm_theta(fp)],
-    )
-    logging.info('Created smaller data loaders')
+    # # Here we create smaller data loaders for the HMC update procedure, due to
+    # # VRAM considerations.
+    # sim_train_loader, _ = load_simulated_data(
+    #     path=ip.dataset_loc,
+    #     split_ratio=ip.split_ratio,
+    #     batch_size=700,
+    #     phot_transforms=[lambda x: t.from_numpy(np.log(x))],
+    #     theta_transforms=[get_norm_theta(fp)],
+    # )
+    # logging.info('Created smaller data loaders')
 
-    ip.ident = ip.hmc_update_sim_ident
-    Q.hmc_retrain_procedure(utrain_loader, ip, P=P,
-                            epochs=ip.hmc_update_sim_epochs,
-                            K=ip.hmc_update_sim_K, lr=3e-4, decay=1e-4,
-                            logging_frequency=10)
-    logging.info('HMC update on sim data complete.')
+    # ip.ident = ip.hmc_update_sim_ident
+    # Q.hmc_retrain_procedure(sim_train_loader, ip, P=P,
+    #                         epochs=ip.hmc_update_sim_epochs,
+    #                         K=ip.hmc_update_sim_K, lr=3e-4, decay=1e-4,
+    #                         logging_frequency=10)
+    # logging.info('HMC update on sim data complete.')
 
     # HMC update procedure with real data -------------------------------
 
-    rtrain_loader, _ = load_real_data(
+    real_train_loader, _ = load_real_data(
         path=ip.catalogue_loc,
         filters=fp.filters,
         split_ratio=ip.split_ratio,
-        batch_size=750,
+        batch_size=600,
         transforms=[t.from_numpy],
         x_transforms=[np.log],
     )
     logging.info('Created real data loader')
 
     ip.ident = ip.hmc_update_real_ident
-    Q.hmc_retrain_procedure(rtrain_loader, ip, P=P,
+    Q.hmc_retrain_procedure(real_train_loader, ip, P=P,
                             epochs=ip.hmc_update_real_epochs,
-                            K=ip.hmc_update_real_K, lr=3e-4, decay=1e-4, 
+                            K=ip.hmc_update_real_K, lr=3e-4, decay=1e-4,
                             logging_frequency=10)
     logging.info('HMC update on real data complete.')

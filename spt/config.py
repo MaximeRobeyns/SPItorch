@@ -117,7 +117,7 @@ class InferenceParams(inference.InferenceParams):
     # dataset_loc: str = SamplingParams().save_dir
     dataset_loc: str = './data/dsets/example/photometry_sim_10000000.h5'
 
-    # Force re-train an existing model
+    # Force re-training of an existing model
     retrain_model: bool = False
 
     # Attempt to use checkpoints (if any) or start training from scratch. If
@@ -128,37 +128,33 @@ class InferenceParams(inference.InferenceParams):
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
-    catalogue_loc: str = './data/DES_VIDEO_v1.0.1.fits'
+    catalogue_loc: str = './data/catalogues/DES_VIDEO_v1.0.1.fits'
 
-    # The number of epochs of the posterior update procedure to run using
-    # simulated data
-    update_sim_epochs: int = 5
+    # HMC update parameters ----------------------------------------------------
+
+    hmc_update_N: int = 5  # number of HMC steps
+    hmc_update_C: int = 100  # number of chains to use in HMC
+    hmc_update_D: int = len(ForwardModelParams().filters)  # data dimensions
+    hmc_update_L: int = 2  # leapfrog integrator steps per iteration
+    hmc_update_rho: float = 0.1  # step size
+    hmc_update_alpha: float = 1.1  # momentum
+
+    # simulated data update procedure:
+
     # The number of samples to use in each update step.
     # (note: quickly increases memory requirements)
-    update_sim_K: int = 1
-    # What to save this as.
-    update_sim_ident: str = 'example_sim_update'
-
-    # Same as above, but for real data (from catalogue_loc)
-    update_real_epochs: int = 10
-    update_real_K: int = 10
-    update_real_ident: str = 'example_real_update'
-
-    # hmc update parameters
-    hmc_update_sim_epochs: int = 5
     hmc_update_sim_K: int = 1
-    hmc_update_sim_ident: str = 'hmc_example_sim_update_simplified'
-    hmc_update_C: int = 100
-    hmc_update_D: int = len(ForwardModelParams().filters)
-    hmc_update_rho = 0.1
-    hmc_update_L = 2
-    hmc_update_alpha = 1.1
+    hmc_update_sim_ident: str = 'update_sim_example'  # saving / checkpointing
+    hmc_update_sim_epochs: int = 5
 
-    hmc_update_real_epochs: int = 5
+    # real data update procedure:
+
     hmc_update_real_K: int = 1
-    hmc_update_real_ident: str = 'hmc_example_real_update_simplified'
+    hmc_update_real_epochs: int = 5
+    hmc_update_real_ident: str = 'update_real_example'
 
-# Prospector fitting parameters -----------------------------------------------
+
+# Baseline MCMC fitting parameters (Prospector) -------------------------------
 
 
 class FittingParams(ConfigClass):
@@ -191,7 +187,6 @@ class EMCEEParams(ConfigClass):
 
 
 class DynestyParams(ConfigClass):
-
     nested_method: str = 'rwalk'
     nlive_init: int = 400
     nlive_batch: int = 200
@@ -210,6 +205,7 @@ class DynestyParams(ConfigClass):
 
 
 class MAFParams(maf.MAFParams):
+    """Parameters for masked autoregressive flow CNDE for approx posterior"""
 
     epochs: int = 10
 
@@ -242,8 +238,8 @@ class MAFParams(maf.MAFParams):
     limits = None
 
 
-# Parameters for approximate posterior
 class SANParams(san.SANParams):
+    """These are parameters for the approximate posterior."""
 
     # Number of epochs to train for (offline training)
     epochs: int = 10
@@ -264,6 +260,7 @@ class SANParams(san.SANParams):
     # features passed between sequential blocks
     sequence_features: int = 16
 
+    # Mixture-of-betas distribution
     # likelihood: Type[san.SAN_Likelihood] = san.MoB
     # likelihood_kwargs: Optional[dict[str, Any]] = {
     #     'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
@@ -277,10 +274,10 @@ class SANParams(san.SANParams):
         'validate_args': False,
     }
 
-    # Whether to use batch norm
+    # Whether to use layer normalisation
     layer_norm: bool = True
 
-    # Whether to use reparametrised sampling during training
+    # Whether to use reparametrised sampling during training (leave to False)
     train_rsample: bool = False
 
     # Optimiser (Adam) learning rate
@@ -290,9 +287,11 @@ class SANParams(san.SANParams):
     opt_decay: float = 1e-4
 
 
-# Parameters for neural likelihood
-# Note: this can be much (much!) smaller and hence faster.
 class SANLikelihoodParams(san.SANParams):
+    """Parameters for the neural likelihood.
+
+    Note: this network can be much smaller than the approximate posterior.
+    """
 
     # Number of epochs to train for (offline training)
     epochs: int = 10
@@ -308,21 +307,18 @@ class SANLikelihoodParams(san.SANParams):
     cond_dim: int = len(ForwardModelParams().free_params)
 
     # shape of the network 'modules'
-    # module_shape: list[int] = [1024, 1024]
     module_shape: list[int] = [200,]
 
     # features passed between sequential blocks
-    # sequence_features: int = 16
     sequence_features: int = 8
 
     likelihood: Type[san.SAN_Likelihood] = san.MoG
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        # 'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
         'K': 3, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
     }
 
-    # Whether to use batch norm
+    # Whether to use layer normalisation
     layer_norm: bool = True
 
     # Whether to use reparametrised sampling during training

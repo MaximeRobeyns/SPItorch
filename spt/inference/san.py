@@ -830,57 +830,17 @@ class SAN(Model):
         # Pre-emptively put model in evaluation mode.
         self.eval()
 
-    @typing.no_type_check
-    def retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
-                          P: Model, epochs: int, K: int, lr: float = 3e-4,
-                          decay: float = 1e-4, logging_frequency: int = 1000
-                          ) -> None:
-        """Perform the 'retraining' procedure"""
-        self.train()
-        t.random.seed()
-
-        opt = t.optim.Adam(self.parameters(), lr=lr, weight_decay=decay)
-
-        self.epochs = epochs
-
-        start_e = self.attempt_checkpoint_recovery(ip)
-        for e in range(start_e, epochs):
-            for i, (x, y) in enumerate(train_loader):
-                x, _ = self.preprocess(x, y)
-
-                # xshape = x.shape
-                # xs = x.unsqueeze(-2).expand(xshape[0], K, xshape[1])
-                xs = x.repeat_interleave(K, 0)
-
-                with t.no_grad():
-                    theta_hat = self.forward(xs, rsample=False)
-                    x_hat = P(theta_hat, rsample=False)
-
-                _ = self.forward(x_hat, True, rsample=False)
-                post_prob = self.likelihood.log_prob(theta_hat, self.last_params)
-
-                loss = -post_prob.sum(-1).mean(0)
-
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
-
-                if i % logging_frequency == 0:
-                    logging.info((f'Objective at epoch: {e:02d}/{epochs:02d}'
-                                  f' iter: {i:04d}/{len(train_loader):04d} is '
-                                  f'{loss.detach().cpu().item()}'))
-            self.checkpoint(ip.ident)
-
-        self.eval()
-        self.epochs = self.mp.epochs
 
     @typing.no_type_check
     def hmc_retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
                               P: Model, epochs: int, K: int, lr: float = 3e-4,
-                              decay: float = 1e-4, logging_frequency: int = 1000
+                              decay: float = 1e-4, logging_frequency: int = 1000,
+                              simplified: bool = True,
                               ) -> None:
         """Perform the retraining procedure, using intermediate HMC updates to
         generate training paris on-the-fly.
+
+        Note: simplified is for backward compatability: leave as True.
         """
         self.train()
         t.random.seed()
@@ -895,7 +855,6 @@ class SAN(Model):
                 return P.likelihood.log_prob(xs, P.last_params).sum(-1)
             return logpdf
 
-        self.epochs = epochs
         start_e = self.attempt_checkpoint_recovery(ip)
         for e in range(start_e, epochs):
             for i, (x, y) in enumerate(train_loader):
@@ -916,11 +875,6 @@ class SAN(Model):
                     quiet=True)
                 xs = None  # no longer needed on GPU memory
 
-                # TODO: remove, old code when we optimised wrt x_hat
-                # with t.no_grad():
-                #     x_hat = P(theta_hat, rsample=False)
-                # _ = self.forward(x_hat, True, rsample=False)
-
                 _ = self.forward(x, True, rsample=False)
                 post_prob = self.likelihood.log_prob(theta_hat, self.last_params)
 
@@ -937,7 +891,6 @@ class SAN(Model):
             self.checkpoint(ip.ident)
 
         self.eval()
-        self.epochs = self.mp.epochs
 
     def _preprocess_sample_input(self, x: tensor_like, n_samples: int = 1000,
                                  errs: Optional[tensor_like] = None) -> Tensor:

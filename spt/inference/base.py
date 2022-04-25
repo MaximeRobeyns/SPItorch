@@ -30,6 +30,7 @@ from torch.utils.data import DataLoader
 from spt.utils import ConfigClass
 from spt.types import Tensor, tensor_like
 
+
 __all__ = ['InferenceParams', 'ModelParams', 'Model', 'model_t']
 
 
@@ -38,8 +39,6 @@ class InferenceParams(ConfigClass):
 
     @property
     @abstractmethod
-    # Type is `Any` due to poorly thought out design causing a circular
-    # dependency. The refactor is probably not worth the headache.
     def model(self) -> "model_t":
         """The model to use"""
         pass
@@ -82,77 +81,62 @@ class InferenceParams(ConfigClass):
         """
         return ""
 
-    @property
-    def update_sim_epochs(self) -> int:
-        """The number of epochs of the "posterior matching" procedure to run."""
-        return 10
+    # hmc update procedure hyperparameters
 
     @property
-    def update_sim_K(self) -> int:
-        """The number of samples to use in the ECDF for the update step (note:
-        quickly increases memory requirements)
-        """
-        return 20
-
-    @property
-    def update_sim_ident(self) -> str:
-        """Identifier to append to filepath of updated model"""
-        return "sim_update"
-
-    @property
-    def update_real_epochs(self) -> int:
-        return 10
-
-    @property
-    def update_real_K(self) -> int:
-        return 10
-
-    @property
-    def update_real_ident(self) -> str:
-        return "real_update"
-
-    # HMC update ---------------------------------------------------------------
-
-    @property
-    def hmc_update_sim_epochs(self) -> int:
+    def hmc_update_N(self) -> int:
+        """The number of steps to take during HMC"""
         return 5
-    @property
-    def hmc_update_sim_K(self) -> int:
-        return 1
-    @property
-    def hmc_update_sim_ident(self) -> str:
-        return 'hmc_example_sim_update'
-    @property
-    def hmc_update_N(self) -> float:
-        return 5
+
     @property
     def hmc_update_C(self) -> int:
+        """The number of concurrent chains to use during HMC"""
         return 100
 
     @property
     @abstractmethod
     def hmc_update_D(self) -> int:
+        """Data dimensions in HMC procedure (i.e. number of physical parameters)"""
         raise NotImplementedError
 
     @property
-    def hmc_update_rho(self) -> float:
-        return 0.1
-    @property
     def hmc_update_L(self) -> int:
+        """Number of leapfrog integrator steps during each iteration"""
         return 2
-    @property
-    def hmc_update_alpha(self) -> float:
-        return 1.1
 
     @property
-    def hmc_update_real_epochs(self) -> int:
+    def hmc_update_rho(self) -> float:
+        """HMC learning rate / step size"""
+        return 0.1
+
+    @property
+    def hmc_update_alpha(self) -> float:
+        """Momentum tempering term"""
+        return 1.1
+
+    # update procedure on simulated data
+
+    @property
+    def hmc_update_sim_K(self) -> int:
+        return 1
+    @property
+    def hmc_update_sim_epochs(self) -> int:
         return 5
+    @property
+    def hmc_update_sim_ident(self) -> str:
+        return 'hmc_update_sim'
+
+    # update procedure on real data
+
     @property
     def hmc_update_real_K(self) -> int:
         return 1
     @property
+    def hmc_update_real_epochs(self) -> int:
+        return 5
+    @property
     def hmc_update_real_ident(self) -> str:
-        return 'hmc_example_real_update'
+        return 'hmc_update_real'
 
 
 class ModelParams(ConfigClass, ABC):
@@ -238,7 +222,6 @@ class Model(nn.Module, metaclass=ABCMeta):
         except AttributeError:
             cls.__repr__ = Model._wrap_lines(cls.__repr__)
             cls.offline_train = Model._save_results(cls.offline_train)
-            cls.retrain_procedure = Model._save_results(cls.retrain_procedure)
             cls.hmc_retrain_procedure = Model._save_results(cls.hmc_retrain_procedure)
             cls._sub_init = True
         return cls
@@ -430,17 +413,6 @@ class Model(nn.Module, metaclass=ABCMeta):
                       *args, **kwargs) -> None:
         """Train the model from an offline dataset of (theta, photometry)
         pairs.
-
-        Args:
-            train_loader: DataLoader to load the training data.
-            ip: the inference parameters describing the training procedure.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
-                          *args, **kwargs):
-        """Update procedure, usually using real data.
 
         Args:
             train_loader: DataLoader to load the training data.

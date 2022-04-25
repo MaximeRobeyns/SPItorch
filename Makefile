@@ -16,12 +16,12 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 
 SHELL := bash
-.ONESHELL:
-.SHELLFLAGS := -eu -o pipefail -c
-.DELETE_ON_ERROR:
-MAKEFLAGS += --warn-undefined-variables
-MAKEFLAGS += --no-builtin-rules
-MAKEFLAGS += -j8
+# .ONESHELL:
+# .SHELLFLAGS := -eu -o pipefail -c
+# .DELETE_ON_ERROR:
+# MAKEFLAGS += --warn-undefined-variables
+# MAKEFLAGS += --no-builtin-rules
+# MAKEFLAGS += -j8
 
 # Ensure Python >= 3.9 is present ---------------------------------------------
 
