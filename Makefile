@@ -88,7 +88,10 @@ figures:  ## To generate all the paper's figures
 	# TODO find all targets here and create appropriate reclips
 	@python figures/code/likelihood_evaluation.py
 
+est:  ## Parameter estimation
+	@python spt/inference/parameter_estimation.py
+
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: alltest cvae docsimg docs inf kernel lab made mypy qt san sim test
