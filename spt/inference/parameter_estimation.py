@@ -44,12 +44,10 @@ if __name__ == '__main__':
     # Load a trained model -----------------------------------------------------
 
     ip = cfg.InferenceParams()
-    fp = cfg.ForwardModelParams()
-
     mp = cfg.SANParams()
     fp = cfg.ForwardModelParams()
 
-    Q = SAN(cfg.SANParams())
+    Q = SAN(mp)
 
     savepath: str = Q.fpath(ip.hmc_update_real_ident)
     try:
@@ -97,7 +95,7 @@ if __name__ == '__main__':
 
     values = np.concatenate((median, mode), 1)
     cat = ip.catalogue_loc.split('/')[-1].split('.')[0]
-    t.save(t.from_numpy(values), f'./results/params/{cat}_{ip.ident}.pt')
+    t.save(t.from_numpy(values), f'./results/params/{cat}_{ip.ident}_norm.pt')
 
     # Save results to HDF5 ----------------------------------------------------
 
@@ -113,7 +111,7 @@ if __name__ == '__main__':
 
     save_path = f'./results/params/{cat}_{ip.ident}.h5'
     with h5py.File(save_path, 'w') as f:
-        grp = f.create_group(f'{fp.filters}')
+        grp = f.create_group(cat)
 
         phot = grp.create_dataset('photometry', data=catalogue.values)
         phot.attrs['columns'] = list(catalogue.columns)
