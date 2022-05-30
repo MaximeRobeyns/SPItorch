@@ -57,16 +57,16 @@ def _plot_obs_photometry(obs: obs_dict_t):
     assert isinstance(obs["maggies_unc"], np.ndarray)
 
     # Plot all the data
-    plt.plot(wphot, obs['maggies'], label='All observed photometry',
-             marker='o', markersize=12, alpha=0.8, ls='', lw=3,
-             color=colours['b'])
+    # plt.plot(wphot, obs['maggies'], label='All observed photometry',
+    #          marker='o', markersize=12, alpha=0.8, ls='', lw=3,
+    #          color=colours['b'])
 
     # overplot only the data we intend to fit
     mask = obs["phot_mask"]
     assert isinstance(mask, np.ndarray)
     plt.errorbar(wphot[mask], obs['maggies'][mask],
                  yerr=obs['maggies_unc'][mask],
-                 label='Photometry to fit',
+                 label='Observed Photometry',
                  marker='o', markersize=8, alpha=0.8, ls='', lw=3,
                  ecolor=colours['r'], markerfacecolor='none',
                  markeredgecolor=colours['r'], markeredgewidth=3)
@@ -74,11 +74,16 @@ def _plot_obs_photometry(obs: obs_dict_t):
 
 def _plot_filters(obs: obs_dict_t, ymin: float, ymax: float):
     assert isinstance(obs['filters'], list)
+    filterlabel = False
     for f in obs['filters']:
         w, t = f.wavelength.copy(), f.transmission.copy()
         t = t / t.max()
         t = 10**(0.2*(np.log10(ymax/ymin)))*t * ymin
-        plt.loglog(w, t, lw=0.7, color=colours['b'], alpha=0.7)
+        if not filterlabel:
+            filterlabel = True
+            plt.loglog(w, t, lw=0.7, color=colours['b'], alpha=0.7, label='filters')
+        else:
+            plt.loglog(w, t, lw=0.7, color=colours['b'], alpha=0.7)
 
 
 def _get_observer_frame_wavelengths(model: SedModel, sps: SSPBasis
@@ -172,7 +177,7 @@ def visualise_obs(obs: obs_dict_t, show: bool = True, save: bool = False,
         title: An optional title to override the default (Observed Photometry)
     """
     xbounds, ybounds = _get_bounds(obs)
-    fig, ax = plt.subplots(figsize=(16, 8), dpi=300)
+    fig, ax = plt.subplots(figsize=(16, 5), dpi=300)
     _plot_obs_photometry(obs)
     _plot_filters(obs, *ybounds)
 
@@ -484,18 +489,21 @@ def qqplot(xs: np.ndarray, ys: np.ndarray,
     diag = np.linspace(minimum, maximum, 100)
     ax.plot(diag, diag, ls='--', c='k', lw=0.5, label='diag')
 
+    if labels is None:
+        labels = [""] * xs.shape[1]
+
     if quantiles is None:
         quantiles = min(xs.shape[0], ys.shape[0])
 
     # compute quantiles of the two samples
     if isinstance(quantiles, numbers.Integral):
-        quantiles = np.linspace(0, 1, num=int(quantiles))
+        quantile_vals = np.linspace(0, 1, num=int(quantiles))
     else:
-        quantiles = np.atleast_1d(np.sort(quantiles))
+        quantile_vals = np.atleast_1d(np.sort(quantiles))
 
     for i in range(xs.shape[1]):
-        x_quantiles = np.quantile(xs[:, i], quantiles, interpolation=interpolation)
-        y_quantiles = np.quantile(ys[:, i], quantiles, interpolation=interpolation)
+        x_quantiles = np.quantile(xs[:, i], quantile_vals, interpolation=interpolation)
+        y_quantiles = np.quantile(ys[:, i], quantile_vals, interpolation=interpolation)
 
         if rug:
             rp = dict(ymax=rug_length, c='gray', alpha=0.5)

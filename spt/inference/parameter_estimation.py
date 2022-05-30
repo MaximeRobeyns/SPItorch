@@ -18,6 +18,7 @@
 
 import sys
 import h5py
+import math
 import logging
 import torch as t
 import numpy as np
@@ -71,7 +72,7 @@ if __name__ == '__main__':
 
     N: int = 1000     # samples per posterior
     bs: int = 1200    # batch size
-    batches: int = int(xs.shape[0] / bs)
+    batches: int = math.ceil((xs.shape[0] / bs))
 
     medians = []
     modes = []

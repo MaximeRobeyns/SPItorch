@@ -26,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from abc import abstractmethod
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type
 from torch.utils.data import DataLoader
 from torch.distributions import Beta, Categorical, Distribution, Normal,\
                                 MixtureSameFamily, Uniform
@@ -44,9 +44,9 @@ from spt.inference.utils import squareplus_f, TruncatedNormal
 
 class MaskedLinear(nn.Linear):
     """Linear layer with a configurable mask on the weights"""
-    def __init__(self, in_features: Tensor, out_features: Tensor,
+    def __init__(self, in_features: int, out_features: int,
                  maskset: Tensor, bias: bool = True,
-                 dtype: t.dtype = None, device: t.device = None) -> Tensor:
+                 dtype: t.dtype = None, device: t.device = None):
         super().__init__(in_features, out_features, bias)
         self.maskset = maskset
         self.num_masks = maskset.size(0)
@@ -63,7 +63,7 @@ class MaskedLinear(nn.Linear):
 
 class CMADE(nn.Module):
 
-    def __init__(self, in_features: int, cond_features: int, hidden_sizes: int,
+    def __init__(self, in_features: int, cond_features: int, hidden_sizes: list[int],
                  out_features: int, num_masks: int = 1,
                  natural_ordering: bool = True, layer_norm: bool = False,
                  dtype: t.dtype = None, device: t.device = None):
@@ -88,26 +88,26 @@ class CMADE(nn.Module):
 
         # Setup model ========================================================
 
-        self.net = []
+        net_layers = []
         hs = [cond_features + in_features] + hidden_sizes + [out_features]
         for i, (h0, h1) in enumerate(zip(hs, hs[1:])):
             if layer_norm:
-                self.net.extend([
+                net_layers.extend([
                     MaskedLinear(h0, h1, self.masksets[i],
                                 device=device, dtype=dtype),
                     nn.LayerNorm(h1),
                     nn.ReLU(),
                 ])
             else:
-                self.net.extend([
+                net_layers.extend([
                     MaskedLinear(h0, h1, self.masksets[i],
-                                device=device, dtype=dtype),
+                                 device=device, dtype=dtype),
                     nn.ReLU(),
                 ])
-        self.net.pop()  # pop last activation
+        net_layers.pop()  # pop last activation
         if layer_norm:
-            self.net.pop()  # pop LayerNorm too
-        self.net = nn.Sequential(*self.net).to(self.device, self.dtype)
+            net_layers.pop()  # pop LayerNorm too
+        self.net = nn.Sequential(*net_layers).to(self.device, self.dtype)
 
 
     def initialise_masks(self) -> tuple[list[Tensor], Tensor]:
@@ -116,7 +116,7 @@ class CMADE(nn.Module):
         L = len(self.hidden_sizes)
         assert len(hs) == L+2
 
-        Ms: dict[[int], Tensor] = {}
+        Ms: dict[int, Tensor] = {}
         if self.natural_ordering:
             Ms[-1] = t.cat((
                 t.zeros(self.cond_features, device=self.device, dtype=self.dtype, requires_grad=False),
@@ -136,7 +136,7 @@ class CMADE(nn.Module):
 
 
         for l in range(L):
-            tmp: list[Tensor] = []
+            tmp_ms: list[Tensor] = []
             for i in range(self.num_masks):
                 if self.in_features-1 == 0:
                     tmp_m = t.zeros(
@@ -148,8 +148,8 @@ class CMADE(nn.Module):
                         self.in_features-1,
                         size=(self.hidden_sizes[l],),
                         device=self.device, dtype=self.dtype)
-                tmp.append(tmp_m[None, :])
-            Ms[l] = t.cat(tmp, 0)
+                tmp_ms.append(tmp_m[None, :])
+            Ms[l] = t.cat(tmp_ms, 0)
 
         assert len(Ms.values()) == L + 1
 
@@ -396,6 +396,7 @@ class MAF(Model):
 
     name: str = 'MAF'
 
+    @typing.no_type_check
     def __repr__(self) -> str:
         return (f'{self.name} with {self.prior.name} base distribution '
                 f'consisting of {self.mp.depth} stacked MAFs, each with '
@@ -406,6 +407,7 @@ class MAF(Model):
                 f'{self.mp.batch_size}, an Adam learning rate of {self.mp.opt_lr}'
                 f' and decay of {self.mp.opt_decay}.')
 
+    @typing.no_type_check
     def fpath(self, ident: str='') -> str:
         """Returns a file path to save the model to, based on its parameters"""
         base = './results/mafmodels/'
@@ -419,7 +421,8 @@ class MAF(Model):
         return self.savepath_cached
 
 
-    def flow_forward(self, c: Tensor, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def flow_forward(self, c: Tensor, x: Tensor
+                     ) -> tuple[list[Tensor], Tensor, Tensor]:
         """'forward' in the conditional flow setting.
 
         Given conditioning information c and data x, this returns the latents
@@ -436,7 +439,7 @@ class MAF(Model):
         prior_logprob = self.prior.log_prob(zs[-1]).view(x.size(0), -1).sum(-1)
         return zs, prior_logprob, log_det
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor) -> Tensor:
         """
         Map from conditioning information x to data y.
 
@@ -456,7 +459,7 @@ class MAF(Model):
         xs, _ = self.flow_backward(x, zs)  # TODO avoid computing log_det
         return xs[-1]
 
-    def flow_backward(self, c: Tensor, z: Tensor) -> tuple[Tensor, Tensor]:
+    def flow_backward(self, c: Tensor, z: Tensor) -> tuple[list[Tensor], Tensor]:
         """'backward' in the conditional flow setting
 
         Given conditioning information c and some latents z, this returns the
@@ -535,12 +538,14 @@ class MAF(Model):
         return x
 
     def sample(self, x: tensor_like, n_samples: int = 1000,
-               errs: Optional[tensor_like] = None) -> Tensor:
+               errs: Optional[tensor_like] = None, *args: Any,
+               **kwargs: Any) -> Tensor:
         """Draw conditional samples from p(y | x)
 
         Args:
             x: the conditioning data; x, [B, cond_dim]
             n_samples: the number of samples to draw.
+            errs: optional observation noise on conditioning information
 
         Returns:
             Tensor: a tensor of shape [n_samples, data_dim]
@@ -558,6 +563,7 @@ class MAF(Model):
         Args:
             x: the conditioning data.
             n_samples: the number of saples to draw when searching for the mode.
+            errs: optional observation noise on conditioning information
 
         Returns:
             Tensor: a tensor of modes [data_dim]
@@ -570,12 +576,14 @@ class MAF(Model):
         z = self.prior.sample(x_pre.shape[:-1])
         y, _ = self.flow_backward(x_pre, z)
 
-        _, lps, log_det = self.flow_forward(x, y)
+        y_lst = y[-1]
+
+        _, lps, log_det = self.flow_forward(x_pre, y_lst)
         rlps = lps.reshape(B, N)
 
         # [B, 1, data_dim]
         idxs = t.argmax(rlps, dim=1)[:, None, None].expand(B, 1, self.data_dim)
-        modes = y.gather(1, idxs).squeeze(1) # [B, data_dim]
+        modes = y_lst.gather(1, idxs).squeeze(1) # [B, data_dim]
 
         return modes
 

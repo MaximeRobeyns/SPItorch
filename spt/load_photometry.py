@@ -145,6 +145,7 @@ def load_catalogue(catalogue_loc: str, filters: list[Filter],
     df_with_spectral_z = df[
         ~pd.isnull(df['redshift'])
     ].query('redshift > 1e-2').query('redshift < 4').reset_index()
+
     return df_with_spectral_z
 
 

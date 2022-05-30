@@ -217,7 +217,7 @@ class MAFParams(maf.MAFParams):
 
     data_dim: int = len(ForwardModelParams().free_params)
 
-    prior: maf.MAFPrior = maf.LogisticPrior
+    prior: t.distributions.Distribution = maf.LogisticPrior
 
     depth: int = 6
 

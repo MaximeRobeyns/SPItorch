@@ -21,23 +21,18 @@ Implements some very simple MCMC samplers.
 import math
 import time
 import logging
-import numpy as np
 import torch as t
-import torch.nn as nn
-import torch.nn.functional as F
 
-from abc import abstractmethod
-from typing import Any, Callable, Generator, Optional, Tuple, Type, Union
-from torch.utils.data import DataLoader
+import typing
+from typing import Callable, Generator, Optional, Tuple, Union
 from rich.progress import Progress
-
-import spt.config as cfg
 
 from spt.types import Tensor
 
 __all__ = ["RWMH", "RWMH_sampler", "HMC", "HMC_sampler", "HMC_optimiser"]
 
 
+@typing.no_type_check
 def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
          sigma: float = 0.1, bounds: Optional[Tensor] = None
          ) -> Generator[Tensor, None, None]:
@@ -75,6 +70,11 @@ def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
 
         yield pos
 
+
+# TODO: ideally this class would avoid the duplication between the RWMH_sampler
+# and the HMC_sampler. That said, since there are only two duplicates, this may
+# not be worth the abstraction...
+#
 # class MCMC_sampler:
 #
 #     def __init__(f: Callable[[Tensor], Tensor],
@@ -95,8 +95,6 @@ def RWMH(logpdf: Callable[[Tensor], Tensor], initial_pos: Tensor,
 #
 #     def __iter__(self) -> Tensor:
 #         raise NotImplementedError
-#
-# TODO finish this
 
 
 def RWMH_sampler(f: Callable[[Tensor], Tensor],
@@ -318,6 +316,7 @@ def HMC_optimiser(f: Callable[[Tensor], Tensor],
                 if i % logging_freq == 0:
                     prog.update(sample_t, advance=logging_freq)
 
+    assert max_pos is not None
     assert max_pos.shape == (B, dim)
     if not quiet:
         duration = time.time() - start
@@ -395,6 +394,7 @@ def HMC_sampler(f: Callable[[Tensor], Tensor],
     with Progress(disable=quiet) as prog:
         burn_t = prog.add_task("Burning-in...", total=burn)
 
+        assert init is not None
         # burn in phase
         pos = init.clone()
         burn_sampler = HMC(f, pos, rho, L, alpha, bounds)

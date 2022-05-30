@@ -230,7 +230,7 @@ class MoB(SAN_Likelihood, TruncatedLikelihood):
         """
         sample_shape = t.Size()
         c1, c2, k = self._extract_params(params)
-        gather_dim = len(loc.shape) - 1
+        gather_dim = len(c1.shape) - 1
         es = t.Size([])
 
         mix_sample = Categorical(logits=k).sample()

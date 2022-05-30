@@ -69,6 +69,29 @@ class InferenceParams(inf.InferenceParams):
     catalogue_loc: str = ''
     # catalogue_loc: str = './data/DES_VIDEO_v1.0.1.fits'
 
+    # HMC update parameters ----------------------------------------------------
+
+    hmc_update_N: int = 5  # number of HMC steps
+    hmc_update_C: int = 100  # number of chains to use in HMC
+    hmc_update_D: int = len(ForwardModelParams().filters)  # data dimensions
+    hmc_update_L: int = 2  # leapfrog integrator steps per iteration
+    hmc_update_rho: float = 0.1  # step size
+    hmc_update_alpha: float = 1.1  # momentum
+
+    # simulated data update procedure:
+
+    # The number of samples to use in each update step.
+    # (note: quickly increases memory requirements)
+    hmc_update_sim_K: int = 1
+    hmc_update_sim_ident: str = 'update_sim_example'  # saving / checkpointing
+    hmc_update_sim_epochs: int = 5
+
+    # real data update procedure:
+
+    hmc_update_real_K: int = 1
+    hmc_update_real_epochs: int = 5
+    hmc_update_real_ident: str = 'update_real_example'
+
 
 class MoGSANParams(san.SANParams):
     epochs: int = 10
@@ -209,7 +232,7 @@ def test_san_sequential_blocks():
 
 def test_san_fpath():
     model = san.SAN(MoGSANParams())
-    assert model.fpath() == './results/sanmodels/lMoG_cd7_dd6_ms16_32_8_lp24_lnTrue_lr0.001_e10_bs1024_trsampleFalse_.pt'
+    assert model.fpath() == './results/sanmodels/lMoG_cd7_dd6_ms16_32_8_lp24_lnTrue_lr0.001_ld0.0001_e10_bs1024_trsampleFalse_.pt'
 
 
 def test_san_forward():
@@ -270,7 +293,7 @@ def test_san_forward():
 
         params = model.block_heads[d][1](H)
         assert params.shape == (N, model.likelihood.n_params())
-        y_d = model.likelihood.sample(params)# .unsqueeze(-1)
+        y_d = model.likelihood.sample(params).unsqueeze(-1)  # TODO: check unsqueeze here
         assert y_d.shape == (N, 1)
 
         ys = t.cat((ys, y_d), -1)
@@ -339,7 +362,7 @@ def test_san_forward_single():
 
         params = model.block_heads[d][1](H)
         assert params.shape == (1, model.likelihood.n_params())
-        y_d = model.likelihood.sample(params)# .unsqueeze(-1)
+        y_d = model.likelihood.sample(params).unsqueeze(-1)  # TODO: verify unsqueeze here
         assert y_d.shape == (1, 1)
 
         ys = t.cat((ys, y_d), -1)
