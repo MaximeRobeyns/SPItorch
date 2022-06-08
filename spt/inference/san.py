@@ -530,6 +530,16 @@ class SANParams(ModelParams):
         # perform any required validation here...
 
     @property
+    def first_module_shape(self) -> list[int]:
+        """The size of the first module of the network.
+        This is used to build useful initial sequence features, and allows the
+        subsequent blocks to be smaller, reducing memory requirements.
+
+        Default: the usual module shape
+        """
+        return self.module_shape
+
+    @property
     @abstractmethod
     def module_shape(self) -> list[int]:
         """Size of each individual 'module block'"""
@@ -600,6 +610,7 @@ class SAN(Model):
         """
         super().__init__(mp, logging_callbacks)
 
+        self.first_module_shape = mp.first_module_shape
         self.module_shape = mp.module_shape
         self.sequence_features = mp.sequence_features
         self.lr = mp.opt_lr
@@ -627,11 +638,11 @@ class SAN(Model):
         self.network_blocks = nn.ModuleList()
         self.block_heads = nn.ModuleList()
 
-        for d in range(self.data_dim):
-            b, h = self._sequential_block(self.cond_dim, d, self.module_shape,
-                      out_shapes=[self.sequence_features,
-                      self.likelihood.n_params()],
-                      out_activations=[nn.ReLU, None])
+        for (i, d) in enumerate(range(self.data_dim)):
+            b, h = self._sequential_block(self.cond_dim, d,
+                    self.first_module_shape if i == 0 else self.module_shape,
+                    out_shapes=[self.sequence_features, self.likelihood.n_params()],
+                    out_activations=[nn.ReLU, None])
             self.network_blocks.append(b)
             self.block_heads.append(h)
 

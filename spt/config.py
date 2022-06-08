@@ -270,6 +270,11 @@ class SANParams(san.SANParams):
     # Number of free parameters to predict
     data_dim: int = len(ForwardModelParams().free_params)
 
+    # Shape of first module
+    # This is used to generate the first sequence features and should be an
+    # accurate density estimator for the redshift.
+    first_module_shape: list[int] = [512, 1024, 1024, 512]
+
     # shape of the network 'modules'
     module_shape: list[int] = [1024, 1024]
 
@@ -322,7 +327,10 @@ class SANLikelihoodParams(san.SANParams):
     # Dimension of physical parameters
     cond_dim: int = len(ForwardModelParams().free_params)
 
-    # shape of the network 'modules'
+    # shape of the first network block
+    first_module_shape: list[int] = [200, 200]
+
+    # shape of subsequent network 'modules'
     module_shape: list[int] = [200,]
 
     # features passed between sequential blocks
