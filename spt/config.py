@@ -77,6 +77,22 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
         Parameter('tau', 10**(-1), 10**0, 10**2, priors.LogUniform, units='Gyr^{-1}'),
     ]
 
+    # Estimate the redshift first ----------------------------------------------
+
+    @property
+    def ordered_params(self) -> list[str]:
+        params = list(self.all_params.keys())
+        params.sort()
+        params.insert(0, params.pop(params.index('zred')))
+        return params
+
+    @property
+    def ordered_free_params(self) -> list[str]:
+        fp = list(self.free_params.keys())
+        fp.sort()
+        fp.insert(0, fp.pop(fp.index('zred')))
+        return fp
+
     build_model_fn: build_model_fn_t = spt.modelling.build_model
 
     # SPS parameters ----------------------------------------------------------
