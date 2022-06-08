@@ -80,9 +80,17 @@ san: ## To run the SAN inference code specifically
 	@export SPS_HOME=$(shell pwd)/deps/fsps
 	@python spt/inference/san.py
 
+full: ## To run the full training and inference procedure
+	@export SPS_HOME=$(shell pwd)/deps/fsps
+	@python bin/full_train.py
+
 inf: ## To run the main inference code
 	@export SPS_HOME=$(shell pwd)/deps/fsps
 	@python spt/inference/inference.py
+
+var: ## To estimate observation variances
+	@export SPS_HOME=$(shell pwd)/deps/fsps
+	@python bin/empirical_variance.py
 
 figures:  ## To generate all the paper's figures
 	# TODO find all targets here and create appropriate reclips

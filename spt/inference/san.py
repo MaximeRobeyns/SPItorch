@@ -791,6 +791,7 @@ class SAN(Model):
         return ys
 
     def offline_train(self, train_loader: DataLoader, ip: InferenceParams,
+                      errs: Optional[Tensor] = None,
                       *args, **kwargs) -> None:
         """Train the SAN model offline.
 
@@ -798,6 +799,7 @@ class SAN(Model):
             train_loader: DataLoader to load the training data.
             ip: The parameters to use for training, defined in
                 `config.py:InferenceParams`.
+            errs: observation noise variance (optional).
         kwargs:
             rsample (Bool): whether to stop gradients (False) or not (True) in the
                 autoregressive sampling step.
@@ -809,6 +811,9 @@ class SAN(Model):
         for e in range(start_e, self.epochs):
             for i, (x, y) in enumerate(train_loader):
                 x, y = self.preprocess(x, y)
+
+                if errs is not None:
+                    x = self._obs_noise_augmentation(x, errs)
 
                 # if the likelihood has limits, then filter the y values here:
                 if isinstance(self.likelihood, TruncatedLikelihood):
@@ -846,7 +851,7 @@ class SAN(Model):
     def hmc_retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
                               P: Model, epochs: int, K: int, lr: float = 3e-4,
                               decay: float = 1e-4, logging_frequency: int = 1000,
-                              simplified: bool = True,
+                              simplified: bool = True, errs: Optional[Tensor] = None,
                               ) -> None:
         """Perform the retraining procedure, using intermediate HMC updates to
         generate training paris on-the-fly.
@@ -873,7 +878,12 @@ class SAN(Model):
 
                 # expand to chains
                 xs = x.repeat_interleave(K, 0)
+
+                if errs is not None:
+                    xs = self._obs_noise_augmentation(xs, errs)
+
                 xs = xs.unsqueeze(-2).expand(-1, ip.hmc_update_C, ip.hmc_update_D)
+
 
                 logpdf = get_logpdf(xs)
                 initial_pos = self(xs)
@@ -902,6 +912,11 @@ class SAN(Model):
             self.checkpoint(ip.ident)
 
         self.eval()
+
+    def _obs_noise_augmentation(self, x: Tensor, errs: Tensor) -> Tensor:
+        """Adds Gaussian noise to the inputs x, with variance errs"""
+        errs = t.atleast_2d(errs).to(x.device, x.dtype)
+        return t.distributions.Normal(x, errs).sample()
 
     def _preprocess_sample_input(self, x: tensor_like, n_samples: int = 1000,
                                  errs: Optional[tensor_like] = None) -> Tensor:
@@ -1008,7 +1023,7 @@ if __name__ == '__main__':
         path=ip.dataset_loc,
         split_ratio=ip.split_ratio,
         batch_size=sp.batch_size,
-        phot_transforms=[t.from_numpy],
+        phot_transforms=[t.from_numpy, t.log],
         theta_transforms=[get_norm_theta(fp)],
     )
 
