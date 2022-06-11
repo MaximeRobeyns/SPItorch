@@ -50,7 +50,9 @@ if __name__ == '__main__':
 
     Q = SAN(mp)
 
-    savepath: str = Q.fpath(ip.hmc_update_real_ident)
+    # savepath: str = Q.fpath(ip.hmc_update_real_ident)
+    savepath: str = Q.fpath(ip.hmc_update_sim_ident)
+    ip.ident = ip.hmc_update_sim_ident
     try:
         logging.info(
             f'Attempting to load {Q.name} model from {savepath}')
@@ -97,6 +99,7 @@ if __name__ == '__main__':
     values = np.concatenate((median, mode), 1)
     cat = ip.catalogue_loc.split('/')[-1].split('.')[0]
     t.save(t.from_numpy(values), f'./results/params/{cat}_{ip.ident}_norm.pt')
+
 
     # Save results to HDF5 ----------------------------------------------------
 
