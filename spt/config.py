@@ -140,7 +140,7 @@ class InferenceParams(inference.InferenceParams):
     # set to False, any previous checkpoints are deleted!
     use_existing_checkpoints: bool = True
 
-    ident: str = 'example'
+    ident: str = 'zred1'
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
@@ -160,14 +160,14 @@ class InferenceParams(inference.InferenceParams):
     # The number of samples to use in each update step.
     # (note: quickly increases memory requirements)
     hmc_update_sim_K: int = 1
-    hmc_update_sim_ident: str = 'update_sim_example'  # saving / checkpointing
+    hmc_update_sim_ident: str = 'update_sim_zred1'  # saving / checkpointing
     hmc_update_sim_epochs: int = 5
 
     # real data update procedure:
 
     hmc_update_real_K: int = 1
     hmc_update_real_epochs: int = 5
-    hmc_update_real_ident: str = 'update_real_example'
+    hmc_update_real_ident: str = 'update_real_zred1'
 
 
 # Baseline MCMC fitting parameters (Prospector) -------------------------------
@@ -258,7 +258,7 @@ class SANParams(san.SANParams):
     """These are parameters for the approximate posterior."""
 
     # Number of epochs to train for (offline training)
-    epochs: int = 10
+    epochs: int = 5
 
     batch_size: int = 1024
 
@@ -273,7 +273,7 @@ class SANParams(san.SANParams):
     # Shape of first module
     # This is used to generate the first sequence features and should be an
     # accurate density estimator for the redshift.
-    first_module_shape: list[int] = [512, 1024, 1024, 512]
+    first_module_shape: list[int] = [1024, 2048, 1024]
 
     # shape of the network 'modules'
     module_shape: list[int] = [1024, 1024]
@@ -292,6 +292,56 @@ class SANParams(san.SANParams):
     likelihood_kwargs: Optional[dict[str, Any]] = {
         'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
         'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
+        'validate_args': False,
+    }
+
+    # Whether to use layer normalisation
+    layer_norm: bool = True
+
+    # Whether to use reparametrised sampling during training (leave to False)
+    train_rsample: bool = False
+
+    # Optimiser (Adam) learning rate
+    opt_lr: float = 3e-3
+
+    # Optimiser (Adam) weight decay
+    opt_decay: float = 1e-4
+
+
+class SANv2Params(san.SANv2Params):
+
+    epochs: int = 5
+
+    batch_size: int = 1024
+
+    dtype: t.dtype = t.float32
+
+    cond_dim: int = len(ForwardModelParams().filters)
+
+    latent_features: int = 1000
+
+    data_dim: int = len(ForwardModelParams().free_params)
+
+    # layers in the main encoder block
+    encoder_layers: list[int] = [3000, 2048]
+
+    # shape of the sequence modules
+    module_shape: list[int] = [1000]
+
+    # features passed between sequential blocks
+    sequence_features: int = 4
+
+    # Mixture-of-betas distribution
+    # likelihood: Type[san.SAN_Likelihood] = san.MoB
+    # likelihood_kwargs: Optional[dict[str, Any]] = {
+    #     'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+    #     'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4
+    # }
+
+    likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+    likelihood_kwargs: Optional[dict[str, Any]] = {
+        'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+        'K': 5, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
         'validate_args': False,
     }
 

@@ -594,13 +594,34 @@ class SANParams(ModelParams):
         return None
 
 
+class SANv2Params(SANParams):
+    """Configuration class for SAN v2 (with shared latent variable)"""
+
+    def __init__(self):
+        super().__init__()
+
+    @property
+    @abstractmethod
+    def latent_features(self) -> int:
+        """The size of the shared latent features."""
+        pass
+
+    @property
+    @abstractmethod
+    def encoder_layers(self) -> list[int]:
+        """The layer sizes for the encoder"""
+        pass
+
+
+
 # Main SAN Class ==============================================================
 
 
 class SAN(Model):
 
     def __init__(self, mp: SANParams,
-                 logging_callbacks: list[Callable] = []):
+                 logging_callbacks: list[Callable] = [],
+                 init_modules: bool = True):
         """"Sequential autoregressive network" implementation.
 
         Args:
@@ -609,12 +630,6 @@ class SAN(Model):
                 often used for visualisations and debugging.
         """
         super().__init__(mp, logging_callbacks)
-
-        self.first_module_shape = mp.first_module_shape
-        self.module_shape = mp.module_shape
-        self.sequence_features = mp.sequence_features
-        self.lr = mp.opt_lr
-        self.decay = mp.opt_decay
 
         kwargs = {} if mp.likelihood_kwargs is None else mp.likelihood_kwargs
         self.likelihood: SAN_Likelihood = mp.likelihood(**kwargs)
@@ -634,26 +649,14 @@ class SAN(Model):
         else:
             self.limits = None
 
-        # Initialise the network
-        self.network_blocks = nn.ModuleList()
-        self.block_heads = nn.ModuleList()
-
-        for (i, d) in enumerate(range(self.data_dim)):
-            b, h = self._sequential_block(self.cond_dim, d,
-                    self.first_module_shape if i == 0 else self.module_shape,
-                    out_shapes=[self.sequence_features, self.likelihood.n_params()],
-                    out_activations=[nn.ReLU, None])
-            self.network_blocks.append(b)
-            self.block_heads.append(h)
+        if init_modules:
+            self._do_init(mp)
 
         # A tensor storing the parameters of the distributions from which
         # samples were drawn for the last forward pass.
         # Useful for evaluating NLL of data under model.
         # Size: [mini-batch, likelihood_params]
         self.last_params: Optional[Tensor] = None
-
-        self.opt = t.optim.Adam(self.parameters(), lr=self.lr,
-                                weight_decay=self.decay)
 
         if mp.device == t.device('cuda'):
             self.to(mp.device, mp.dtype)
@@ -688,6 +691,29 @@ class SAN(Model):
 
         return self.savepath_cached
 
+    def _do_init(self, mp: SANParams):
+        """Initialises the network modules based on the configuration"""
+
+        self.first_module_shape = mp.first_module_shape
+        self.module_shape = mp.module_shape
+        self.sequence_features = mp.sequence_features
+        self.lr = mp.opt_lr
+        self.decay = mp.opt_decay
+
+        self.network_blocks = nn.ModuleList()
+        self.block_heads = nn.ModuleList()
+
+        for (i, d) in enumerate(range(self.data_dim)):
+            b, h = self._sequential_block(self.cond_dim, d,
+                    self.first_module_shape if i == 0 else self.module_shape,
+                    out_shapes=[self.sequence_features, self.likelihood.n_params()],
+                    out_activations=[nn.ReLU, None])
+            self.network_blocks.append(b)
+            self.block_heads.append(h)
+
+        self.opt = t.optim.Adam(self.parameters(), lr=self.lr,
+                                weight_decay=self.decay)
+
     def _sequential_block(self, cond_dim: int, d: int, module_shape: list[int],
                           out_shapes: list[int], out_activations: list[Any]
                           ) -> tuple[nn.Module, nn.ModuleList]:
@@ -710,6 +736,7 @@ class SAN(Model):
         if d == 0:
             hs = [cond_dim] + module_shape
         else:
+            # [x + sequence_features + autoregressive samples, module layers...]
             hs = [cond_dim + out_shapes[0] + d] + module_shape
 
         for i, (j, k) in enumerate(zip(hs[:-1], hs[1:])):
@@ -1004,6 +1031,173 @@ class PModel(SAN):
     emulator by switching the xs and thetas in the preprocessing step."""
     def preprocess(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
         return y.to(self.device, self.dtype), x.to(self.device, self.dtype)
+
+
+# V2 SAN (with shared latents) ================================================
+
+
+class SANv2(SAN):
+
+    def __init__(self, mp: SANv2Params,
+                 logging_callbacks: list[Callable] = []):
+        """Sequential autoregressive network with shared latent variables
+        output by an initial 'encoder' block. Marginals of the target
+        distribution are then sequentially generated in an autoregressive
+        manner.
+
+        Args:
+            mp: The SAN (v2) model parameters, set in `config.py`.
+            logging_callbacks: list of callables accepting this model instance;
+                often used for visualisations and debugging.
+        """
+        super().__init__(mp, logging_callbacks, init_modules=False)
+
+        self._do_init(mp)
+
+        if mp.device == t.device('cuda'):
+            self.to(mp.device, mp.dtype)
+            self.likelihood.to(mp.device, mp.dtype)
+        else:
+            self.likelihood.to(t.device('cpu'), mp.dtype)
+
+    name: str = 'SANv2'
+
+    def __repr__(self) -> str:
+        return (f'{self.name} with {self.likelihood.name} likelihood, '
+                f'encoder of shape {self.encoder_layers} and '
+                f'{self.latent_features} latent features, '
+                f'module blocks of shape {self.module_shape} '
+                f'and {self.sequence_features} features between blocks trained '
+                f'for {self.epochs} epochs with batches of size {self.batch_size}')
+
+    def fpath(self, ident: str='') -> str:
+        """Returns a file path to save the model to, based on its parameters."""
+        base = './results/sanv2models/'
+        s = self.module_shape + [self.sequence_features]
+        ms = '_'.join([str(l) for l in s])
+        name = (f'l{self.likelihood.name}_cd{self.cond_dim}_'
+                f'ed{self.latent_features}_'
+                f'dd{self.data_dim}_ms{ms}_'
+                f'lp{self.likelihood.n_params()}_ln{self.layer_norm}_'
+                f'lr{self.lr}_ld{self.decay}_e{self.epochs}_'
+                f'bs{self.batch_size}_trsample{self.train_rsample}_')
+        name += 'lim_' if self.limits is not None else ''
+        self.savepath_cached = f'{base}{name}{ident}.pt'
+
+        return self.savepath_cached
+
+    def _do_init(self, mp: SANv2Params):
+        """Initialises the network modules based on the configuration"""
+
+        # SANv1 properties
+        self.first_module_shape = mp.first_module_shape
+        self.module_shape = mp.module_shape
+        self.sequence_features = mp.sequence_features
+        self.lr = mp.opt_lr
+        self.decay = mp.opt_decay
+        # SANv2 properties
+        self.latent_features = mp.latent_features
+        self.encoder_layers = mp.encoder_layers
+
+        # initialise the encoder block:
+
+        self.encoder = nn.Sequential()
+        hs = [self.cond_dim] + self.encoder_layers + [self.latent_features]
+        for i, (j, k) in enumerate(zip(hs[:-1], hs[1:])):
+            self.encoder.add_module(name=f'E{i}', module=nn.Linear(j, k))
+            if self.layer_norm:
+                self.encoder.add_module(name=f'E_LN{i}', module=nn.LayerNorm(k))
+            self.encoder.add_module(name=f'E_A{i}', module=nn.ReLU())
+        self.encoder.to(self.device, self.dtype)
+
+        # initialise the sequential blocks:
+
+        self.sequential_blocks = nn.ModuleList()
+        self.sequential_block_heads = nn.ModuleList()
+
+        for (i, d) in enumerate(range(self.data_dim)):
+            b, h = self._sequential_block(self.latent_features, d,
+                    self.module_shape,
+                    out_shapes=[self.sequence_features, self.likelihood.n_params()],
+                    out_activations=[nn.ReLU, None])
+            self.sequential_blocks.append(b)
+            self.sequential_block_heads.append(h)
+
+        self.opt = t.optim.Adam(self.parameters(), lr=self.lr,
+                                weight_decay=self.decay)
+
+        # We need to initialise an encoder block (taking input_features to latent_features)
+        #
+        # We then need to initialise the data_dim sequential blocks. This could
+        # be done by the superclass for us, so long as we set the .
+
+        self.latent_features = mp.latent_features
+        self.module_shape = mp.module_shape
+        self.sequence_features = mp.sequence_features
+        self.lr = mp.opt_lr
+        self.decay = mp.opt_decay
+
+    def forward(self, x: Tensor, lp: bool = False,
+                rsample: bool = False) -> Tensor:
+        """Forward pass through the model.
+
+        Args:
+            x: a (batch of) conditioning information [batch_size, cond_dim]
+            lp: whether to save the last parameters (used for evaluating likelihoods)
+            rsample: whether to stop gradients (False) or not (True) in the
+                autoregressive sampling step.
+
+        Returns:
+            Tensor: a sample from the distribution; y_hat ~  p(y | x)
+
+        Implicit Returns:
+            self.lats_params: if lp=True, a tensor containing the parameters of
+            each marginal distribution of size [batch_size, lparams] is saved.
+            This allows us to evaluate p(y | x) later.
+        """
+
+        B = x.shape[:-1]
+
+        # marginals
+        ys = t.empty(B + (0,), dtype=self.dtype, device=self.device)
+
+        if lp:
+            self.last_params = t.empty(B + (0, self.likelihood.n_params()),
+                                       dtype=self.dtype, device=self.device)
+        else:
+            # invalidate any previously saved parameters to avoid confusion
+            self.last_params = None
+
+        seq_features = t.empty(B + (0,), dtype=self.dtype, device=self.device)
+
+        z = self.encoder(x)
+
+        for d in range(self.data_dim):
+
+            d_input = t.cat((z, seq_features, ys), -1)
+
+            H = self.sequential_blocks[d](d_input)
+
+            # for passing into next sequential block
+            seq_features = self.sequential_block_heads[d][0](H)
+
+            # draw single sample from p(y_d | y_<d, z)
+            params = self.sequential_block_heads[d][1](H)
+            if rsample:
+                y_d = self.likelihood.rsample(params, d)
+            else:
+                y_d = self.likelihood.sample(params, d)
+            assert not y_d.isnan().all(), "NaN values returned from likelihood."
+
+            y_d = y_d[(..., ) + (None, ) * (ys.dim() - y_d.dim())]
+
+            ys = t.cat((ys, y_d), -1)
+            if lp:
+                self.last_params = t.cat((self.last_params, params.unsqueeze(-2)), x.dim()-1)
+
+        # check we did the sampling right
+        assert ys.shape == B + (self.data_dim,)
+        return ys
 
 
 if __name__ == '__main__':
