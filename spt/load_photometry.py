@@ -538,7 +538,7 @@ class InMemoryObsDataset(Dataset):
             permlist = [cols.index(cn) for cn in ofp] # type: ignore
             # can be expensive for big dsets; skip if possible...
             if permlist != list(range(len(ofp))):
-                ys = ys[:, np.ndarray(permlist)]
+                ys = ys[:, permlist]
 
             return xs, ys
 
