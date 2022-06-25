@@ -22,12 +22,14 @@ import numpy as np
 
 from spt.types import Tensor
 from spt import config as cfg
-from spt.inference.san import SAN
-from spt.load_photometry import load_simulated_data, get_norm_theta, load_catalogue
+from spt.inference.san import SANv2, PModelv2
+from spt.load_photometry import load_simulated_data, get_norm_theta, \
+                                load_real_data
 
 
 def dcn(x: Tensor) -> np.ndarray:
     return x.detach().cpu().numpy()
+
 
 if __name__ == '__main__':
 
@@ -38,37 +40,66 @@ if __name__ == '__main__':
 
     ip = cfg.InferenceParams()
     fp = cfg.ForwardModelParams()
-    sp = cfg.SANParams()
+    sp = cfg.SANv2Params()
 
     # Train the approximate posterior -----------------------------------------
+    ip.retrain_model = True
+    ip.use_existing_checkpoints = False
 
-    # Compute the variance of the real data
-    path = "data/DES_VIDEO_v1.0.1.fits"
-    real_df = load_catalogue(path, fp.filters, True)
-    # WARNING: these are the unnormalised variances. You should normalise the
-    # real_df maggies values before computing the var here.
-    errs = t.from_numpy(np.log(real_df.iloc[:, 7:14].to_numpy()).var(0))
-
-    P = SAN(sp)
-    logging.info(P)
+    Q = SANv2(sp)
+    logging.info(f'Initialised approximate posterior: {Q}')
 
     train_loader, test_loader = load_simulated_data(
         path=ip.dataset_loc,
         split_ratio=ip.split_ratio,
         batch_size=sp.batch_size,
-        phot_transforms=[t.from_numpy],
+        phot_transforms=[lambda x: t.from_numpy(np.log(x))],
         theta_transforms=[get_norm_theta(fp)],
     )
 
-    P.offline_train(train_loader, ip, errs)
+    Q.offline_train(train_loader, ip)
 
-    logging.info(f'Exiting')
+    logging.info('Finished training approximate posterior')
 
     # Train the neural likelihood ---------------------------------------------
-    #
-    # Run the HMC update procedure on simulated data --------------------------
-    #
-    # Run the HMC update procedure on real data (no augmentation) -------------
-    #
-    # Run the full parameter estimation procedure -----------------------------
 
+    slp = cfg.SANv2LikelihoodParams()
+    P = PModelv2(slp)
+    ip.ident = "ML_likelihood"
+
+    P.offline_train(train_loader, ip)
+    logging.info(f'Initialised neural likelihood: {P}')
+
+    # Run the HMC update procedure on simulated data --------------------------
+
+    # Create new data loaders with smaller batch sizes (for memory consumption)
+    train_loader, test_loader = load_simulated_data(
+        path=ip.dataset_loc,
+        split_ratio=ip.split_ratio,
+        batch_size=ip.hmc_update_batch_size,
+        phot_transforms=[np.log, t.from_numpy],
+        theta_transforms=[get_norm_theta(fp)],
+    )
+    logging.info('Created data loaders with HMC update batch size')
+
+    ip.ident = ip.hmc_update_sim_ident
+    Q.hmc_retrain_procedure(train_loader, ip, P=P,
+                            epochs=ip.hmc_update_sim_epochs,
+                            K=ip.hmc_update_sim_K, lr=3e-4, decay=1e-4)
+    logging.info('Updated on simulated data')
+
+    # # Run the HMC update procedure on real data (no augmentation) -------------
+
+    # real_train_loader, real_test_loader = load_real_data(
+    #     path=ip.catalogue_loc, filters=fp.filters, split_ratio=ip.split_ratio,
+    #     batch_size=ip.hmc_update_batch_size,
+    #     transforms=[t.from_numpy], x_transforms=[np.log],
+    # )
+
+    # ip.ident = ip.hmc_update_real_ident
+    # Q.hmc_retrain_procedure(real_train_loader, ip, P=P,
+    #                         epochs=ip.hmc_update_real_epochs,
+    #                         K=ip.hmc_update_real_K, lr=3e-4, decay=1e-4)
+    # logging.info('Updated on real data')
+
+    logging.info('Exiting')

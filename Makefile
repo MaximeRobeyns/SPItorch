@@ -41,6 +41,10 @@ endif
 
 default: test
 
+opt: ## Optimisation for SANv2
+	@export SPS_HOME=$(shell pwd)/deps/fsps
+	@python bin/san_opt.py
+
 dset: ## To create an offline dataset of theta-photometry samples.
 	@python spt/modelling/simulation.py
 
