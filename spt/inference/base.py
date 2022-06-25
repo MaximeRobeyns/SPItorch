@@ -84,6 +84,11 @@ class InferenceParams(ConfigClass):
     # hmc update procedure hyperparameters
 
     @property
+    def hmc_update_batch_size(self) -> int:
+        """The batch size to use for HMC"""
+        return 1024
+
+    @property
     def hmc_update_N(self) -> int:
         """The number of steps to take during HMC"""
         return 5

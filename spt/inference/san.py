@@ -1200,6 +1200,13 @@ class SANv2(SAN):
         return ys
 
 
+class PModelv2(SANv2):
+    """A SANv2 which is slightly adapted to act as a likelihood / forward model
+    emulator by switching the xs and thetas in the preprocessing step."""
+    def preprocess(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+        return y.to(self.device, self.dtype), x.to(self.device, self.dtype)
+
+
 if __name__ == '__main__':
 
     from spt import config as cfg

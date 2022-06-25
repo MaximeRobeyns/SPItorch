@@ -148,6 +148,8 @@ class InferenceParams(inference.InferenceParams):
 
     # HMC update parameters ----------------------------------------------------
 
+    hmc_update_batch_size: int = 700  # HMC update consumes more memory ML
+
     hmc_update_N: int = 5  # number of HMC steps
     hmc_update_C: int = 100  # number of chains to use in HMC
     hmc_update_D: int = len(ForwardModelParams().filters)  # data dimensions
@@ -258,7 +260,7 @@ class SANParams(san.SANParams):
     """These are parameters for the approximate posterior."""
 
     # Number of epochs to train for (offline training)
-    epochs: int = 5
+    epochs: int = 10
 
     batch_size: int = 1024
 
@@ -310,23 +312,27 @@ class SANParams(san.SANParams):
 
 class SANv2Params(san.SANv2Params):
 
-    epochs: int = 5
+    epochs: int = 10
 
-    batch_size: int = 1024
+    # batch_size: int = 1024
+    batch_size: int = 5000
 
     dtype: t.dtype = t.float32
 
     cond_dim: int = len(ForwardModelParams().filters)
 
-    latent_features: int = 1000
+    # latent_features: int = 250
+    latent_features: int = 100
 
     data_dim: int = len(ForwardModelParams().free_params)
 
     # layers in the main encoder block
-    encoder_layers: list[int] = [3000, 2048]
+    # encoder_layers: list[int] = [5000, 5000]
+    # encoder_layers: list[int] = [10000, 10000]
+    encoder_layers: list[int] = [7000, 7000]
 
     # shape of the sequence modules
-    module_shape: list[int] = [1000]
+    module_shape: list[int] = [2000]
 
     # features passed between sequential blocks
     sequence_features: int = 4
@@ -352,7 +358,7 @@ class SANv2Params(san.SANv2Params):
     train_rsample: bool = False
 
     # Optimiser (Adam) learning rate
-    opt_lr: float = 3e-3
+    opt_lr: float = 7e-4
 
     # Optimiser (Adam) weight decay
     opt_decay: float = 1e-4
@@ -382,6 +388,55 @@ class SANLikelihoodParams(san.SANParams):
 
     # shape of subsequent network 'modules'
     module_shape: list[int] = [200,]
+
+    # features passed between sequential blocks
+    sequence_features: int = 8
+
+    likelihood: Type[san.SAN_Likelihood] = san.MoG
+
+    likelihood_kwargs: Optional[dict[str, Any]] = {
+        'K': 3, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
+    }
+
+    # Whether to use layer normalisation
+    layer_norm: bool = True
+
+    # Whether to use reparametrised sampling during training
+    train_rsample: bool = False
+
+    # Optimiser (Adam) learning rate
+    opt_lr: float = 3e-3
+
+    # Optimiser (Adam) weight decay
+    opt_decay: float = 1e-4
+
+class SANv2LikelihoodParams(san.SANv2Params):
+    """Parameters for the neural likelihood.
+
+    Note: this network can be much smaller than the approximate posterior.
+    """
+
+    # Number of epochs to train for (offline training)
+    epochs: int = 10
+
+    batch_size: int = 2048
+
+    dtype: t.dtype = t.float32
+
+    # Dimension of observed photometry
+    data_dim: int = len(ForwardModelParams().filters)
+
+    # Dimension of latent feature vector
+    latent_features: int = 100
+
+    # Dimension of physical parameters
+    cond_dim: int = len(ForwardModelParams().free_params)
+
+    # shape of the first network block
+    encoder_layers: list[int] = [512,]
+
+    # shape of subsequent network 'modules'
+    module_shape: list[int] = [128,]
 
     # features passed between sequential blocks
     sequence_features: int = 8
