@@ -522,7 +522,8 @@ class SANParams(ModelParams):
     """Configuration class for SAN.
 
     This defines some required properties, and additionally performs validation
-    of user-supplied values.
+    of user-supplied values. See :class:`ModelParams` for additional
+    configuration values.
     """
 
     def __init__(self):

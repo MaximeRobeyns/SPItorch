@@ -21,9 +21,17 @@ from setuptools import find_packages
 
 wd = pathlib.Path(__file__).parent.resolve()
 
-with open('requirements.txt', 'r') as f:
-    install_requires = f.read().splitlines()
-    install_requires = list(filter(lambda s: '=' in s, install_requires))
+
+def get_requirements(path: str = '.') -> list[str]:
+    with open(f'{path}/requirements.txt') as f:
+        requirements = f.read().splitlines()
+        requirements = list(filter(lambda s: '=' in s, requirements))
+        return requirements
+
+
+install_requires = get_requirements()
+docs_requires = get_requirements('docs')
+tests_requires = get_requirements('tests')
 
 with open("README.md", "r") as f:
     long_description = f.read()
@@ -38,6 +46,10 @@ setup(
     url='https://github.com/MaximeRobeyns/spitorch',
     license='GPLv3',
     install_requires=install_requires,
+    extras_require={
+        "tests": tests_requires,
+        "docs": docs_requires,
+    },
     packages=find_packages(exclude=['tests']),
     classifiers=[
         'Programming Language :: Python :: 3',

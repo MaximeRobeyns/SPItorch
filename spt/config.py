@@ -1,4 +1,4 @@
-# SPItorch: Inference of Stellar Population Properties in PyTorch
+
 #
 # Copyright (C) 2022 Maxime Robeyns <dev@maximerobeyns.com>
 #
@@ -110,8 +110,7 @@ class SamplingParams(ConfigClass):
     n_samples: int = int(10e4)
     concurrency: int = 10
     observation: bool = False  # use real observation as obs... should have no effect
-    # save_dir: str = './data/dsets/example/'
-    save_dir: str = './data/dsets/tutorial/'
+    save_dir: str = './data/dsets/example/'
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 

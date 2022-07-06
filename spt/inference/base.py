@@ -145,6 +145,10 @@ class InferenceParams(ConfigClass):
 
 
 class ModelParams(ConfigClass, ABC):
+    """Generic parameters shared by all models. Users will generally not
+    initialise this class directly; rather classes inheriting it for specific
+    models.
+    """
 
     @property
     @abstractmethod

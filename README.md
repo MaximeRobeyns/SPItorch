@@ -3,7 +3,7 @@
 <p>Stellar Population Inference in PyTorch</p>
 </div>
 
-[![Compile docs](https://github.com/MaximeRobeyns/agnfinder/actions/workflows/docs.yml/badge.svg?branch=master)](https://github.com/MaximeRobeyns/agnfinder/actions/workflows/docs.yml)
+[![Compile docs](https://github.com/MaximeRobeyns/spitorch/actions/workflows/docs.yml/badge.svg?branch=master)](https://github.com/MaximeRobeyns/spitorch/actions/workflows/docs.yml)
 
 SPItorch (read '_spy-torch_') is a library for estimating the
 parameters of galaxies and other stellar objects.

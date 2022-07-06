@@ -58,6 +58,9 @@ test: mypy  ## To run the program's fast tests (e.g. to verify an installation)
 alltest: mypy ## To run all the program's tests (including slow running ones)
 	@python -m pytest tests --runslow
 
+docs:  ## Start compiling the documentation and watching for changes
+	@./docs/writedocs.sh
+
 .PHONY: install
 install: ## To install everything (requires internet connection)
 	@./bin/install.sh
@@ -77,4 +80,4 @@ san: ## To run the SAN inference code specifically
 help:
 	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: dset mdset mypy test alltest kernel lab san help
+.PHONY: dset mdset mypy test alltest kernel lab san help docs
