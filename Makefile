@@ -41,10 +41,6 @@ endif
 
 default: test
 
-opt: ## Optimisation for SANv2
-	@export SPS_HOME=$(shell pwd)/deps/fsps
-	@python bin/san_opt.py
-
 dset: ## To create an offline dataset of theta-photometry samples.
 	@python spt/modelling/simulation.py
 
@@ -62,12 +58,6 @@ test: mypy  ## To run the program's fast tests (e.g. to verify an installation)
 alltest: mypy ## To run all the program's tests (including slow running ones)
 	@python -m pytest tests --runslow
 
-docs: ## To compile the documentation (requires Docker)
-	@./docs/writedocs.sh
-
-docsimg: ## To explicitly build the Docker image for writing documentation.
-	@docker build -f ./docs/Dockerfile -t spitorchdocs ./docs
-
 .PHONY: install
 install: ## To install everything (requires internet connection)
 	@./bin/install.sh
@@ -84,26 +74,7 @@ san: ## To run the SAN inference code specifically
 	@export SPS_HOME=$(shell pwd)/deps/fsps
 	@python spt/inference/san.py
 
-full: ## To run the full training and inference procedure
-	@export SPS_HOME=$(shell pwd)/deps/fsps
-	@python bin/full_train.py
-
-inf: ## To run the main inference code
-	@export SPS_HOME=$(shell pwd)/deps/fsps
-	@python spt/inference/inference.py
-
-var: ## To estimate observation variances
-	@export SPS_HOME=$(shell pwd)/deps/fsps
-	@python bin/empirical_variance.py
-
-figures:  ## To generate all the paper's figures
-	# TODO find all targets here and create appropriate reclips
-	@python figures/code/likelihood_evaluation.py
-
-est:  ## Parameter estimation
-	@python spt/inference/parameter_estimation.py
-
 help:
 	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: alltest cvae docsimg docs inf kernel lab made mypy qt san sim test
+.PHONY: dset mdset mypy test alltest kernel lab san help

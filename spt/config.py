@@ -106,11 +106,12 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 
 class SamplingParams(ConfigClass):
 
-    # n_samples: int = int(50e6)
-    n_samples: int = int(10e6)
+    # n_samples: int = int(10e6)
+    n_samples: int = int(10e4)
     concurrency: int = 10
     observation: bool = False  # use real observation as obs... should have no effect
-    save_dir: str = './data/dsets/example/'
+    # save_dir: str = './data/dsets/example/'
+    save_dir: str = './data/dsets/tutorial/'
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
@@ -148,7 +149,7 @@ class InferenceParams(inference.InferenceParams):
 
     # HMC update parameters ----------------------------------------------------
 
-    hmc_update_batch_size: int = 700  # HMC update consumes more memory ML
+    hmc_update_batch_size: int = 700  # HMC update consumes more memory than ML
 
     hmc_update_N: int = 5  # number of HMC steps
     hmc_update_C: int = 100  # number of chains to use in HMC

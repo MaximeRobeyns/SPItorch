@@ -54,8 +54,6 @@ def test_HMC_single_batch():
     pos = t.randn((1, chains, dim), device=device, dtype=dtype)
     sampler = HMC(mixture_logpdf, pos, rho, L, alpha)
 
-    print(f'pos shape : {pos.shape}')
-
     for (tmp, i) in zip(sampler, range(N)):
         assert tmp.shape == t.Size((1, chains, dim))
         break

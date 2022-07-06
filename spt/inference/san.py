@@ -691,8 +691,10 @@ class SAN(Model):
 
         return self.savepath_cached
 
-    def _do_init(self, mp: SANParams):
+    def _do_init(self, mp: ModelParams):
         """Initialises the network modules based on the configuration"""
+
+        assert isinstance(mp, SANParams)
 
         self.first_module_shape = mp.first_module_shape
         self.module_shape = mp.module_shape
@@ -1086,8 +1088,10 @@ class SANv2(SAN):
 
         return self.savepath_cached
 
-    def _do_init(self, mp: SANv2Params):
+    def _do_init(self, mp: ModelParams):
         """Initialises the network modules based on the configuration"""
+
+        assert isinstance(mp, SANv2Params)
 
         # SANv1 properties
         self.first_module_shape = mp.first_module_shape
