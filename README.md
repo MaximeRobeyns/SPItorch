@@ -5,7 +5,7 @@
 
 [![Compile docs](https://github.com/MaximeRobeyns/agnfinder/actions/workflows/docs.yml/badge.svg?branch=master)](https://github.com/MaximeRobeyns/agnfinder/actions/workflows/docs.yml)
 
-SPItorch (read '_spy-torch_', /spaɪ tɔːʧ/) is a library for estimating the
+SPItorch (read '_spy-torch_') is a library for estimating the
 parameters of galaxies and other stellar objects.
 
 ## Installation
@@ -21,11 +21,12 @@ cd SPItorch
 make install
 ```
 
-If you want to run the tutorial, you will need the tutorial datasets. These are
-hosted on GitHub using [Git Large Object Storage](https://git-lfs.github.com/)
-(LFS). To download it, you will need to install `git lfs`. You can find the
-latest release on the [release](https://github.com/git-lfs/git-lfs/releases)
-page. Here is an example installation, using Linux:
+If you want to run the tutorial notebooks, you will need the tutorial datasets.
+These are hosted on GitHub using [Git Large Object
+Storage](https://git-lfs.github.com/) (LFS). To download it, you will need to
+install `git lfs`. You can find the latest release on the
+[release](https://github.com/git-lfs/git-lfs/releases) page. Here is an example
+installation, using Linux:
 
 ``` bash
 cd /tmp
