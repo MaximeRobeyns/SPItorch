@@ -19,7 +19,7 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: setup
-      run: pip install -e . .[docs]
+      run: pip install -e .
     - name: build docs
       run: cd ./docs && make html
     - name: deploy
