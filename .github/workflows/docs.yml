@@ -13,7 +13,7 @@ jobs:
     name: Compile and deploys the docs
     runs-on: ubuntu-latest
     container:
-      image: python:latest
+      image: pytorch/pytorch
       volumes:
         - docs:/docs
     steps:
