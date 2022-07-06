@@ -1,0 +1,507 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+<meta property="og:title" content="5. Inferring Galaxy Parameters (SAN)" />
+  
+<meta property="og:type" content="website" />
+  
+<meta property="og:url" content="san_inference.html" />
+  
+<meta property="og:description" content="The method described in this page, the Sequential Autoregressive Network, (SAN) is currently the best performing method in the codebase. As a reminder, we wish to estimate the distribution of physi..." />
+  <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="4. Inference Overview" href="inference.html" />
+
+    <link rel="shortcut icon" href="_static/favicon-32x32.png"/><meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
+        <title>5. Inferring Galaxy Parameters (SAN) - SPItorch</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">SPItorch</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">SPItorch</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">1. Installation Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="basic_usage.html">2. Basic Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sampling.html">3. Photometry Sampling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inference.html">4. Inference Overview</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">5. Inferring Galaxy Parameters (SAN)</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="inferring-galaxy-parameters-san">
+<span id="san-inference"></span><h1><span class="section-number">5. </span>Inferring Galaxy Parameters (SAN)<a class="headerlink" href="#inferring-galaxy-parameters-san" title="Permalink to this headline">#</a></h1>
+<p>The method described in this page, the <em>Sequential Autoregressive Network</em>,
+(SAN) is currently the best performing method in the codebase.
+As a reminder, we wish to estimate the distribution of physical galaxy
+parameters <span class="math notranslate nohighlight">\(\mathbf{y} \in \mathbb{R}^{9}\)</span>, given some photometric
+observations <span class="math notranslate nohighlight">\(\mathbf{x} \in \mathbb{R}^{8}\)</span>; that is <span class="math notranslate nohighlight">\(p(\mathbf{y}
+\vert \mathbf{x})\)</span>.</p>
+<p>We draw loose inspiration from other autoregressive models such as <a class="reference internal" href="#made2015" id="id1"><span>[MADE2015]</span></a>,
+while focusing on the goals of providing fast sampling times (i.e. being able to
+compute the distribution of <span class="math notranslate nohighlight">\(p(\mathbf{y} \vert \mathbf{x})\)</span> quickly as
+well as being able to draw samples from it quickly) and maintaining good accuracy;
+that is, we hope for low test NLL, <span class="math notranslate nohighlight">\(-\sum^N_{i=1} \log
+p_{\text{SAN}}(\mathbf{y}_{i}\vert \mathbf{x}_{i})\)</span> for pairs of points in the
+testing dataset <span class="math notranslate nohighlight">\(\mathcal{D}_{\text{test}} = \big\{(\mathbf{x}_{i},
+\mathbf{y}_{i})\big\}_{i=1}^{N}\)</span>.</p>
+<section id="autoregressive-models-for-distribution-estimation">
+<h2><span class="section-number">5.1. </span>Autoregressive Models for Distribution Estimation<a class="headerlink" href="#autoregressive-models-for-distribution-estimation" title="Permalink to this headline">#</a></h2>
+<p>Before considering the full details of the SAN model, we first review
+autoregressive models.</p>
+<p>Strictly speaking, an ‘autoregressive model’ is one where the output of the
+model (usually indexed by <cite>time</cite>) depends on the previously outputted values of
+the model and some stochastic term. For example, they are commonly employed to
+predict the next value(s) in a time series.</p>
+<p>In this context however, we use a model with this <cite>autoregressive property</cite> to
+estimate a multivariate distribution, one dimension at a time. That is, rather
+than specifying the value of a stochastic process at a given timestep (or
+<em>index</em>), each iteration of the autoregressive model outputs the next dimension
+of the multivariate distribution.</p>
+<p>Usually, when estimating / learning distributions over data, we must be careful
+to make sure that the distribution normalises. For example, if we observe a set
+of points <span class="math notranslate nohighlight">\(\{\mathbf{x}_{i}\}_{i=1}^{N} \in \mathcal{X}
+\subseteq\mathbb{R}^d\)</span>, and we’d like to discover <span class="math notranslate nohighlight">\(p(\mathbf{x})\)</span>, then
+we must make sure that</p>
+<div class="math-wrapper"><div class="math notranslate nohighlight">
+\[\int_{\mathcal{X}} p(\mathbf{x}) d\mathbf{x} = 1.\]</div></div>
+<p>Even for small <span class="math notranslate nohighlight">\(d\)</span>, this can be an expensive procedure unless this
+normalisation consideration is explicitly thought about when designing the
+model.</p>
+<p>Autoregressive models side-step the need to compute or even approximate high
+dimensional integrals by simply factorising the desired multivariate
+distribution as a product of its nested conditionals:</p>
+<div class="math-wrapper"><div class="math notranslate nohighlight">
+\[\begin{split}\begin{align*}
+p(\mathbf{x}) &amp;= \prod^d_{i=1}p(x_i \vert \mathbf{x}_{&lt;i}) \\
+&amp;= p(x_1) p(x_2 \vert x_1) \cdots p(x_d \vert x_{d-1}, \ldots, x_1).
+\end{align*}\end{split}\]</div></div>
+<p>(On notation, <span class="math notranslate nohighlight">\(\mathbf{x}_{&lt;d} \doteq [x_{1}, \ldots, x_{d-1}]^\top\)</span>.)</p>
+<p>Recall that during training we have <span class="math notranslate nohighlight">\((\text{photometry},
+\text{parameter})\)</span> pairs <span class="math notranslate nohighlight">\((\mathbf{x}, \mathbf{y})\)</span>, and that we are not
+interested in learning the joint <span class="math notranslate nohighlight">\(p(\mathbf{x}, \mathbf{y})\)</span> (as the
+equation above suggests) so much as the distribution of parameters conditioned
+on photometry <span class="math notranslate nohighlight">\(p(\mathbf{y} \vert \mathbf{x})\)</span>.</p>
+<p>We can straightforwardly extend the above to include the conditioning
+information (now <span class="math notranslate nohighlight">\(\mathbf{x}\)</span>) and instead factorise the data we care
+about modelling, <span class="math notranslate nohighlight">\(\{\mathbf{y}_{i}\}_{i=1}^{N} \in \mathcal{Y}
+\subseteq\mathbb{R}^D\)</span>, giving us:</p>
+<div class="math-wrapper"><div class="math notranslate nohighlight">
+\[\begin{split}\begin{align*}
+p(\mathbf{y} \vert \mathbf{x}) &amp;= \prod^D_{d=1}p(y_d \vert \mathbf{y}_{&lt;d},
+\mathbf{x}) \\
+&amp;= p(y_1 \vert \mathbf{x}) p(y_2 \vert y_1, \mathbf{x}) \cdots p(y_D
+\vert y_{D-1}, \ldots, y_1, \mathbf{x}).
+\end{align*}\end{split}\]</div></div>
+<p>That is, so long as we can ensure that the output for the <span class="math notranslate nohighlight">\(d^{\text{th}}\)</span>
+dimension <span class="math notranslate nohighlight">\(y_{d}\)</span> only depends on the previous dimensions
+<span class="math notranslate nohighlight">\(\mathbf{y}_{&lt;d}\)</span> as well as the conditioning information
+<span class="math notranslate nohighlight">\(\mathbf{x}\)</span>, then the density <span class="math notranslate nohighlight">\(p(\mathbf{y} \vert \mathbf{x})\)</span> can
+be efficiently computed as the product of factorised terms. We will refer to
+this property as the <cite>autoregressive property</cite> going forward.</p>
+<p>For instance, we could compute the negative log likelihood as:</p>
+<div class="math-wrapper"><div class="math notranslate nohighlight">
+\[- \log p(\mathbf{y} \vert \mathbf{x}) = - \sum^D_{d=1} \log p(y_d \vert
+  \mathbf{y}_{&lt;d}, \mathbf{x}).\]</div></div>
+<p>So long as <span class="math notranslate nohighlight">\(D\)</span> remains relatively small (which, for this application,
+should be no more than about 10), and the individual dimensions are modelled
+with an easily computed distribution, then the above should remain quick to compute.</p>
+</section>
+<section id="the-sequential-autoregressive-network">
+<h2><span class="section-number">5.2. </span>The Sequential Autoregressive Network<a class="headerlink" href="#the-sequential-autoregressive-network" title="Permalink to this headline">#</a></h2>
+<p>The following shows the architecture of our proposed autoregressive model, which
+we call a <cite>Sequential Autoregressive Network</cite>.</p>
+<figure class="align-default" id="id2">
+<a class="reference external image-reference" href="_images/san.svg"><img alt="SAN architecture" src="_images/san.svg"/></a>
+<figcaption>
+<p><span class="caption-text">Click the image to zoom into the SVG in a new tab if it is too small.</span><a class="headerlink" href="#id2" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<p>The network is composed of <span class="math notranslate nohighlight">\(D\)</span> <cite>sequential blocks</cite>. These are repeated
+sequences of layers (which do not share weights), which accept as input the
+conditioning information <span class="math notranslate nohighlight">\(\mathbf{x}\)</span>, a set of <span class="math notranslate nohighlight">\(F\)</span> <cite>sequence
+features</cite> from the previous block (excluding the first), as well as all the
+stochastic outputs <span class="math notranslate nohighlight">\(\hat{y}_{d} \sim p(y_{d} \vert \hat{\mathbf{y}}_{&lt;d},
+\mathbf{x})\)</span> from previous blocks.</p>
+<p>This combination of features is somewhat unusual:</p>
+<ul class="simple">
+<li><p>in autoregressive models, the <span class="math notranslate nohighlight">\(d^{\text{th}}\)</span> output usually only
+depends on the previous outputs <span class="math notranslate nohighlight">\(\hat{y}_{d} \sim p(y_{d} \vert
+\hat{\mathbf{y}}_{&lt;d})\)</span>, but not the ‘sequence features’ or
+conditioning information <span class="math notranslate nohighlight">\(\mathbf{x}\)</span>.</p></li>
+<li><p>in a recurrent network (e.g. <cite>RNN</cite>), usually only the ‘sequence features’ (or
+equivalent) are passed through iterations, and not the network outputs for
+previous iterations <span class="math notranslate nohighlight">\(\hat{\mathbf{y}}_{&lt;d}\)</span>.</p></li>
+</ul>
+<p>Since we can return an arbitrary number of parameters at the output of each
+sequential block, we are free to parametrise any distribution we like for
+<span class="math notranslate nohighlight">\(p(y_d \vert \hat{\mathbf{y}}_{&lt;d}, \mathbf{x})\)</span>. In the diagram above, we
+show a Gaussian mixture with <span class="math notranslate nohighlight">\(K\)</span> components, with the
+<span class="math notranslate nohighlight">\(d^{\text{th}}\)</span> sequential block returning <span class="math notranslate nohighlight">\(K\)</span> locations
+<span class="math notranslate nohighlight">\(\{\mu_{d,i}\}_{i=1}^{K}\)</span>, scales <span class="math notranslate nohighlight">\(\{\sigma^2_{d,i}\}_{i=1}^{K}\)</span>,
+and mixture weights <span class="math notranslate nohighlight">\(\{\varphi_{d,i}\}_{i=1}^{K}\)</span> such that
+<span class="math notranslate nohighlight">\(\sum_{i=1}^K \varphi_{d,i} = 1\)</span>.</p>
+<p>This model architecture was found to satisfy the desiderata of fast sampling (one
+can draw 10,000 posterior samples from <span class="math notranslate nohighlight">\(p(\mathbf{y} \vert \mathbf{x})\)</span>
+for a single source <span class="math notranslate nohighlight">\(\mathbf{x}\)</span> in the order of 10ms), and reasonable
+accuracy:</p>
+<figure class="align-default">
+<a class="reference external image-reference" href="_images/san_results.png"><img alt="SAN results" src="_images/san_result.png"/></a>
+</figure>
+<section id="using-the-san-model">
+<h3><span class="section-number">5.2.1. </span>Using the SAN Model<a class="headerlink" href="#using-the-san-model" title="Permalink to this headline">#</a></h3>
+<p>The configurations for this model (see the <a class="reference external" href="inference.html">inference overview</a> for general configuration information) are defined in
+<code class="docutils literal notranslate"><span class="pre">config.py</span></code>.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spt.inference.san.</span></span><span class="sig-name descname"><span class="pre">SANParams</span></span><a class="headerlink" href="#spt.inference.san.SANParams" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration class for SAN.</p>
+<p>This defines some required properties, and additionally performs validation
+of user-supplied values. See <a class="reference internal" href="inference.html#ModelParams" title="ModelParams"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelParams</span></code></a> for additional
+configuration values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">SANParams</span><span class="p">(</span><span class="n">san</span><span class="o">.</span><span class="n">SANParams</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="gp">... </span>    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span>
+<span class="gp">... </span>    <span class="n">dtype</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">float32</span>
+<span class="gp">... </span>    <span class="n">cond_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ForwardModelParams</span><span class="p">()</span><span class="o">.</span><span class="n">filters</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">data_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ForwardModelParams</span><span class="p">()</span><span class="o">.</span><span class="n">free_params</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">first_module_shape</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1024</span><span class="p">,</span> <span class="mi">2048</span><span class="p">,</span> <span class="mi">1024</span><span class="p">]</span>
+<span class="gp">... </span>    <span class="n">module_shape</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1024</span><span class="p">,</span> <span class="mi">1024</span><span class="p">]</span>
+<span class="gp">... </span>    <span class="n">sequence_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">... </span>    <span class="n">likelihood</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">san</span><span class="o">.</span><span class="n">SAN_Likelihood</span><span class="p">]</span> <span class="o">=</span> <span class="n">san</span><span class="o">.</span><span class="n">TruncatedMoG</span>
+<span class="gp">... </span>    <span class="n">likelihood_kwargs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+<span class="gp">... </span>        <span class="s1">'lims'</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">ForwardModelParams</span><span class="p">()</span><span class="o">.</span><span class="n">free_param_lims</span><span class="p">(</span><span class="n">normalised</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+<span class="gp">... </span>        <span class="s1">'K'</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">'mult_eps'</span><span class="p">:</span> <span class="mf">1e-4</span><span class="p">,</span> <span class="s1">'abs_eps'</span><span class="p">:</span> <span class="mf">1e-4</span><span class="p">,</span> <span class="s1">'trunc_eps'</span><span class="p">:</span> <span class="mf">1e-4</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="s1">'validate_args'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="p">}</span>
+<span class="gp">... </span>    <span class="n">layer_norm</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="gp">... </span>    <span class="n">train_rsample</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="gp">... </span>    <span class="n">opt_lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3e-3</span>
+<span class="gp">... </span>    <span class="n">opt_decay</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-4</span>
+</pre></div>
+</div>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.first_module_shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">first_module_shape</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#spt.inference.san.SANParams.first_module_shape" title="Permalink to this definition">#</a></dt>
+<dd><p>The size of the first module of the network.
+This is used to build useful initial sequence features, and allows the
+subsequent blocks to be smaller, reducing memory requirements.</p>
+<p>Default: the usual module shape</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.layer_norm">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">layer_norm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#spt.inference.san.SANParams.layer_norm" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to use layer norm (batch normalisation) or not</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.likelihood">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">likelihood</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">spt.inference.san.SAN_Likelihood</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#spt.inference.san.SANParams.likelihood" title="Permalink to this definition">#</a></dt>
+<dd><p>Likelihood to use for each p(y_d | y_&lt;d, x)</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.likelihood_kwargs">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">likelihood_kwargs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#spt.inference.san.SANParams.likelihood_kwargs" title="Permalink to this definition">#</a></dt>
+<dd><p>Any keyword arguments accepted by likelihood</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.limits">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">limits</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">torch.Tensor</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#spt.inference.san.SANParams.limits" title="Permalink to this definition">#</a></dt>
+<dd><p>Allows the output samples to be constrained to lie within the
+specified range.</p>
+<p>This method returns a (self.data_dim x 2)-dimensional tensor, with the
+(normalised) min and max values of each dimension of the output.</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.module_shape">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">module_shape</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#spt.inference.san.SANParams.module_shape" title="Permalink to this definition">#</a></dt>
+<dd><p>Size of each individual ‘module block’</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.opt_decay">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">opt_decay</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#spt.inference.san.SANParams.opt_decay" title="Permalink to this definition">#</a></dt>
+<dd><p>Optimiser weight decay</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.opt_lr">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">opt_lr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#spt.inference.san.SANParams.opt_lr" title="Permalink to this definition">#</a></dt>
+<dd><p>Optimiser learning rate</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.sequence_features">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">sequence_features</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#spt.inference.san.SANParams.sequence_features" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of features to carry through for each network block</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.san.SANParams.train_rsample">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">train_rsample</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#spt.inference.san.SANParams.train_rsample" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to stop gradients at the autoregressive step</p>
+</dd></dl>
+</dd></dl>
+</section>
+</section>
+<section id="references">
+<h2><span class="section-number">5.3. </span>References<a class="headerlink" href="#references" title="Permalink to this headline">#</a></h2>
+<dl class="citation">
+<dt class="label" id="made2015"><span class="brackets"><a class="fn-backref" href="#id1">MADE2015</a></span></dt>
+<dd><p>Germain, Mathieu, Karol Gregor, Iain Murray, and Hugo Larochelle.
+‘MADE: Masked Autoencoder for Distribution Estimation’. In Proceedings of the
+32nd International Conference on Machine Learning, 881–89. PMLR, 2015.
+<a class="reference external" href="https://proceedings.mlr.press/v37/germain15.html">https://proceedings.mlr.press/v37/germain15.html</a>.</p>
+</dd>
+</dl>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          <a class="prev-page" href="inference.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title"><span class="section-number">4. </span>Inference Overview</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">5. Inferring Galaxy Parameters (SAN)</a><ul>
+<li><a class="reference internal" href="#autoregressive-models-for-distribution-estimation">5.1. Autoregressive Models for Distribution Estimation</a></li>
+<li><a class="reference internal" href="#the-sequential-autoregressive-network">5.2. The Sequential Autoregressive Network</a><ul>
+<li><a class="reference internal" href="#using-the-san-model">5.2.1. Using the SAN Model</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#references">5.3. References</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/scripts/furo.js"></script>
+    <script src="_static/clipboard.min.js"></script>
+    <script src="_static/copybutton.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>

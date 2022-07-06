@@ -1,0 +1,653 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+<meta property="og:title" content="4. Inference Overview" />
+  
+<meta property="og:type" content="website" />
+  
+<meta property="og:url" content="inference.html" />
+  
+<meta property="og:description" content="Inferring physical galaxy parameters from photometric observations can be seen as the task of learning a mapping f : \mathcal{X} \to \Theta, from the space of n-dimensional photometric observations..." />
+  <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="5. Inferring Galaxy Parameters (SAN)" href="san_inference.html" /><link rel="prev" title="3. Photometry Sampling" href="sampling.html" />
+
+    <link rel="shortcut icon" href="_static/favicon-32x32.png"/><meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
+        <title>4. Inference Overview - SPItorch</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">SPItorch</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">SPItorch</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">1. Installation Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="basic_usage.html">2. Basic Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sampling.html">3. Photometry Sampling</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">4. Inference Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="san_inference.html">5. Inferring Galaxy Parameters (SAN)</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="inference-overview">
+<span id="inference"></span><h1><span class="section-number">4. </span>Inference Overview<a class="headerlink" href="#inference-overview" title="Permalink to this headline">#</a></h1>
+<p>Inferring physical galaxy parameters from photometric observations
+can be seen as the task of learning a mapping <span class="math notranslate nohighlight">\(f : \mathcal{X} \to
+\Theta\)</span>, from the space of <span class="math notranslate nohighlight">\(n\)</span>-dimensional photometric observations
+<span class="math notranslate nohighlight">\(\mathcal{X}\)</span> (corresponding to <span class="math notranslate nohighlight">\(n\)</span> filters), to the space of
+physical parameters <span class="math notranslate nohighlight">\(\Theta\)</span> (such as mass, star formation, E(B-V), AGN
+disk inclination and so forth).</p>
+<p>Since the photometric observations <span class="math notranslate nohighlight">\(\mathbf{x}\in\mathcal{X}\)</span> alone are
+unlikely to be sufficient to constrain the full range of physical parameters
+<span class="math notranslate nohighlight">\(\theta \in \Theta\)</span> that we’d like to infer, we resolve to output
+distributions physical parameters, conditioned on the information in the
+photometric observations. That is, the mapping <span class="math notranslate nohighlight">\(f\)</span> is one-to-many, and a
+reasonable way to deal with this is to work with distributions over the outputs
+<span class="math notranslate nohighlight">\(p(\theta \vert \mathbf{x})\)</span></p>
+<p>From the simulation section, we generated a dataset of <span class="math notranslate nohighlight">\((\theta,
+\mathbf{x})\)</span> pairs, <span class="math notranslate nohighlight">\(\mathcal{D} = \big\{(\theta_{i},
+\mathbf{x}_{i})\big\}_{i=1}^{N}\)</span>, giving us a fairly standard supervised machine
+learning setup.</p>
+<p>We can appeal to the broad machine learning literature which presents many ways
+to tackle this problem, for instance using generative models or autoregressive
+models. Accordingly, to avoid a clash of notation, we will henceforth denote the
+physical galaxy parameters as <span class="math notranslate nohighlight">\(\mathbf{y}\)</span> (previously <span class="math notranslate nohighlight">\(\theta\)</span>).
+This is to match the machine learning nomenclature of denoting the outputs to be
+predicted as <span class="math notranslate nohighlight">\(\mathbf{y}\)</span>, and the model parameters as <span class="math notranslate nohighlight">\(\theta\)</span>. The
+inputs remain <span class="math notranslate nohighlight">\(\mathbf{x}\)</span>.</p>
+<section id="using-the-models">
+<h2><span class="section-number">4.1. </span>Using the Models<a class="headerlink" href="#using-the-models" title="Permalink to this headline">#</a></h2>
+<p>In line with this program’s conventions of using configuration classes rather
+than command-line arguments, all the options for running inference can be set in
+the <code class="docutils literal notranslate"><span class="pre">config.py</span></code> file.</p>
+<p>There are a few classes to bear in mind:</p>
+</section>
+<section id="forwardmodelparameters">
+<h2><span class="section-number">4.2. </span>ForwardModelParameters<a class="headerlink" href="#forwardmodelparameters" title="Permalink to this headline">#</a></h2>
+<p>We re-use the definitions of the forward model parameters to describe which
+parameters to learn. This avoids repetition any differences between the forward
+model and the machine learning models.</p>
+<p>We use the following heuristics to detect parameters:</p>
+<ul class="simple">
+<li><p>if an element of the parameter dictionary from
+<code class="docutils literal notranslate"><span class="pre">ForwardModelParams().all_params</span></code> has an <code class="docutils literal notranslate"><span class="pre">'isfree':</span> <span class="pre">True</span></code> property, then
+it is treated as a parameter to model. Note that this might come from a
+template library, and not explicitly defined in
+<code class="docutils literal notranslate"><span class="pre">ForwardModelParams.model_params</span></code>!</p></li>
+<li><p>to determine the bounds on the acceptable range of these parameters, we look
+at the <code class="docutils literal notranslate"><span class="pre">prior.range</span></code> property, which is implemented on all the Prospector
+priors.</p></li>
+<li><p>If the prior distribution for a free parameter is <code class="docutils literal notranslate"><span class="pre">LogUniform</span></code> or
+<code class="docutils literal notranslate"><span class="pre">LogNormal</span></code>, then we treat this parameter as having log scaling. This means
+that to normalise these parameters, we first exponentiate their values (as
+well as the bounds on the distribution), before applying the scale and offset
+to constrain the values to the [0, 1] range.</p></li>
+</ul>
+<section id="general-inference-parameters">
+<h3><span class="section-number">4.2.1. </span>General Inference Parameters<a class="headerlink" href="#general-inference-parameters" title="Permalink to this headline">#</a></h3>
+<p>This method’s parameters are contained in the <code class="docutils literal notranslate"><span class="pre">InferenceParams</span></code> class (the
+base class for this is defined in <code class="docutils literal notranslate"><span class="pre">agnfinder/inference/inference.py</span></code>).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="InferenceParams">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">InferenceParams</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ConfigClass</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#InferenceParams" title="Permalink to this definition">#</a></dt>
+<dd><p>General parameters for the inference code.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<em>model_t</em>) – The model to use for inference.</p></li>
+<li><p><strong>split_ratio</strong> (<em>int</em>) – The dataset train/test split ratio.</p></li>
+<li><p><strong>logging_frequency</strong> (<em>int</em>) – How often (in iterations) to output logs during training.</p></li>
+<li><p><strong>dataset_loc</strong> (<em>str</em>) – Path to a <code class="docutils literal notranslate"><span class="pre">hdf5</span></code> file or directory of <code class="docutils literal notranslate"><span class="pre">hdf5</span></code> files.</p></li>
+<li><p><strong>retrain_model</strong> (<em>bool</em>) – Whether to re-train an identically configured model.</p></li>
+<li><p><strong>use_existing_checkpoints</strong> (<em>bool</em>) – Whether to pick-up training from any existing model checkpoints or start from scratch.</p></li>
+<li><p><strong>overwrite_results</strong> (<em>bool</em>) – Whether to overwrite results from identical model.</p></li>
+<li><p><strong>ident</strong> (<em>str</em>) – An optional string to identify a specific training run when saved to disk.</p></li>
+<li><p><strong>catalogue_loc</strong> (<em>str</em>) – Catalogue of (real) observations (for <strong>prediction</strong>)</p></li>
+<li><p><strong>filters</strong> (<em>FilterSet</em>) – Used for loading catalogue of real observations (for <strong>prediction</strong>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Example</dt>
+<dd class="field-even"><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">InferenceParams</span><span class="p">(</span><span class="n">inference</span><span class="o">.</span><span class="n">InferenceParams</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">model</span><span class="p">:</span> <span class="n">model_t</span> <span class="o">=</span> <span class="n">san</span><span class="o">.</span><span class="n">SAN</span>
+<span class="gp">... </span>    <span class="n">split_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
+<span class="gp">... </span>    <span class="n">logging_frequency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10000</span>
+<span class="gp">... </span>    <span class="n">dataset_loc</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'./data/cubes/photometry_simulation.hdf5'</span>
+<span class="gp">... </span>    <span class="n">retrain_model</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="gp">... </span>    <span class="n">overwrite_results</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="gp">... </span>    <span class="n">ident</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'an_informative_identifier'</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># Prediction:</span>
+<span class="gp">... </span>    <span class="n">catalogue_loc</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'./data/DES_VIDEO_v1.0.1.fits'</span>
+<span class="gp">... </span>    <span class="n">filters</span><span class="p">:</span> <span class="n">FilterSet</span> <span class="o">=</span> <span class="n">Filters</span><span class="o">.</span><span class="n">DES</span>  <span class="c1"># {Euclid, DES, Reliable, All}</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</dd></dl>
+<p>Most argument names along with their corresponding type should be self-explanatory.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">dataset_loc</span></code> property should point to the output of a simulation run
+(that is, the output of running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">sim</span></code>). Please see the <a class="reference external" href="/sampling.html">Photometry
+Sampling</a> section for more information about this.</p>
+<p>When a model is initialised, a descriptive name is generated based on its
+parameters. If the training method (<code class="docutils literal notranslate"><span class="pre">trainmodel</span></code>, see below) is called on a
+model with identical parameters to a previously trained and saved model, and
+the <code class="docutils literal notranslate"><span class="pre">retrain_model</span></code> argument is set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, then we attempt to load (the
+<code class="docutils literal notranslate"><span class="pre">state_dict</span></code> of) this previous identical model instead of training the model
+immediately. If loading fails for some reason (e.g. the file does not exist),
+then training proceeds as normal.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">retrain_model</span> <span class="pre">==</span> <span class="pre">True</span></code>, then the <code class="docutils literal notranslate"><span class="pre">overwrite_results</span></code> argument specifies
+what to do when saving the resulting model—if set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, then the
+previously saved model will be overwritten. If set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, then a number
+is appended to the current model’s name to make it unique.</p>
+<p>Since a number is not particularly informative, you can also set a unique and
+ideally informative identifier using the <code class="docutils literal notranslate"><span class="pre">ident</span></code> field to differentiate models
+which might have identical parameters (e.g. trained on different datasets etc.).</p>
+<p>When we want to use a (trained) model to predict galaxy parameters (e.g. median
+or mode), we can specify the catalogue of galaxy observations that we would like
+to run the model on using the <code class="docutils literal notranslate"><span class="pre">catalogue_loc</span></code> parameter. In order to load this
+successfully, you must also specify the <code class="docutils literal notranslate"><span class="pre">filters</span></code> used.</p>
+</section>
+<section id="model-parameters">
+<h3><span class="section-number">4.2.2. </span>Model Parameters<a class="headerlink" href="#model-parameters" title="Permalink to this headline">#</a></h3>
+<p>In general, each different model will have a number of parameters which are
+unique to it. However, there are some common parameters which are shared across
+all the models in the codebase.</p>
+<p>To reflect this, model parameters inherit a base <code class="xref py py-class docutils literal notranslate"><span class="pre">ModelParams</span></code> class, which
+specifies things such as the datatype, device memory to use and so forth.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="spt.inference.base.ModelParams">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spt.inference.base.</span></span><span class="sig-name descname"><span class="pre">ModelParams</span></span><a class="headerlink" href="#spt.inference.base.ModelParams" title="Permalink to this definition">#</a></dt>
+<dd><p>Generic parameters shared by all models. Users will generally not
+initialise this class directly; rather classes inheriting it for specific
+models.</p>
+<dl class="field-list">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">ExampleModelParams</span><span class="p">(</span><span class="n">ModelParams</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="gp">... </span>    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span>
+<span class="gp">... </span>    <span class="n">dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span>
+<span class="gp">... </span>    <span class="n">device</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">"cuda"</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">cond_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="gp">... </span>    <span class="n">data_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">9</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.base.ModelParams.batch_size">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">batch_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#spt.inference.base.ModelParams.batch_size" title="Permalink to this definition">#</a></dt>
+<dd><p>The mini-batch size</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.base.ModelParams.cond_dim">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cond_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#spt.inference.base.ModelParams.cond_dim" title="Permalink to this definition">#</a></dt>
+<dd><p>Length of 1D conditioning information vector</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.base.ModelParams.data_dim">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#spt.inference.base.ModelParams.data_dim" title="Permalink to this definition">#</a></dt>
+<dd><p>Length of the perhaps (flattened) 1D data vector, y</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.base.ModelParams.device">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">torch.device</span></em><a class="headerlink" href="#spt.inference.base.ModelParams.device" title="Permalink to this definition">#</a></dt>
+<dd><p>The device on which to run this model.</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.base.ModelParams.dtype">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">torch.dtype</span></em><a class="headerlink" href="#spt.inference.base.ModelParams.dtype" title="Permalink to this definition">#</a></dt>
+<dd><p>The data type to use with this model. e.g. torch.float32</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="spt.inference.base.ModelParams.epochs">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">epochs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#spt.inference.base.ModelParams.epochs" title="Permalink to this definition">#</a></dt>
+<dd><p>The number of epochs to train the model for.</p>
+<p>Putting this parameter here risks incurring a ‘type error’; this is
+really an inference parameter (how long we train the model for),
+however since this has such a large effect on the resulting saved
+model, we prefer to associate it with the model itself.</p>
+</dd></dl>
+</dd></dl>
+<p>Since all models are concerned with learning a distribution <span class="math notranslate nohighlight">\(p(\mathbf{y} \vert
+\mathbf{x})\)</span>, for <span class="math notranslate nohighlight">\(\mathbf{y} \in \mathbb{R}^{N}\)</span> and <span class="math notranslate nohighlight">\(\mathbf{x}
+\in \mathbb{R}^{M}\)</span>, we can reliably set parameters <code class="docutils literal notranslate"><span class="pre">data_dim</span> <span class="pre">=</span> <span class="pre">N</span></code> and
+<code class="docutils literal notranslate"><span class="pre">cond_dim</span> <span class="pre">=</span> <span class="pre">M</span></code> for all models.</p>
+<p><strong>Aside</strong>:</p>
+<blockquote>
+<div><p>At first, putting <code class="docutils literal notranslate"><span class="pre">epochs</span></code> in the <code class="xref py py-class docutils literal notranslate"><span class="pre">ModelParams</span></code> (instead of the
+<code class="docutils literal notranslate"><span class="pre">InferenceParams</span></code>) might seem to commit a ‘type error’: <cite>surely the training
+duration has more to do with the training procedure than the model itself?</cite> The
+<code class="docutils literal notranslate"><span class="pre">batch_size</span></code> parameter might also seem similarly misplaced. Since these
+parameters have a large effect on model performance, I claim that they
+should be treated similarly to architectural parameters, and are therefore
+associated with a model.</p>
+<p>For instance, when we come to load a trained model, we <cite>do</cite> care how
+long it was trained for, therefore it makes more sense to associate this
+parameter with the model itself; treating it as a model parameter rather than
+merely a parameter of the training procedure.</p>
+</div></blockquote>
+</section>
+<section id="training-the-models">
+<h3><span class="section-number">4.2.3. </span>Training the models<a class="headerlink" href="#training-the-models" title="Permalink to this headline">#</a></h3>
+<p>Having configured the inference parameters, you will also need a dataset loaded
+to train the model on. A utility function (<code class="docutils literal notranslate"><span class="pre">utils.load_simulated_data</span></code>) is
+available to help with this.</p>
+<p>To initialise a model, we pass an initialised model parameter class to the
+model’s constructor. Now the <code class="docutils literal notranslate"><span class="pre">trainmodel</span></code> method can be called to run the
+training procedure.</p>
+<p>During training, models will save checkpoints after every epoch. This means that
+you can interrupt training at any time, and only lose the progress made during
+the current checkpoint. You can also later check for overfitting by loading the
+model state from an earlier point during training.</p>
+<p>The checkpoints are saved in a directory with the same name as the final model
+results; which is saved with an additional <code class="docutils literal notranslate"><span class="pre">.py</span></code> extension. If you are
+re-training an identical parametrised model, the code will first attempt to load
+an existing saved model before falling back to running the training procedure.</p>
+<p>The following is a full example, using the <a class="reference external" href="san_inference.html">SAN</a> model:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">agnfinder.nbutils</span> <span class="k">as</span> <span class="nn">nbu</span>
+
+<span class="c1"># Configure the logger (defaults to INFO-level logs)</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">configure_logging</span><span class="p">()</span>
+
+<span class="c1"># Initialise the inference, and model parameters; defined in config.py</span>
+<span class="n">ip</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">InferenceParams</span><span class="p">()</span>
+<span class="n">sp</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">SANParams</span><span class="p">()</span>
+
+<span class="c1"># Get the dataloaders for training and testing</span>
+<span class="n">train_loader</span><span class="p">,</span> <span class="n">test_loader</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">load_simulated_data</span><span class="p">(</span>
+    <span class="n">path</span><span class="o">=</span><span class="n">ip</span><span class="o">.</span><span class="n">dataset_loc</span><span class="p">,</span>
+    <span class="n">split_ratio</span><span class="o">=</span><span class="n">ip</span><span class="o">.</span><span class="n">split_ratio</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">sp</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">normalise_phot</span><span class="o">=</span><span class="n">utils</span><span class="o">.</span><span class="n">normalise_phot_np</span><span class="p">,</span>
+    <span class="n">transforms</span><span class="o">=</span><span class="p">[</span><span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">()])</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Created data loaders'</span><span class="p">)</span>
+
+<span class="c1"># Initialise the model</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">SAN</span><span class="p">(</span><span class="n">sp</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Initialised SAN model'</span><span class="p">)</span>
+
+<span class="c1"># Run the training procedure</span>
+<span class="n">model</span><span class="o">.</span><span class="n">trainmodel</span><span class="p">(</span><span class="n">train_loader</span><span class="p">,</span> <span class="n">ip</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Trained SAN model'</span><span class="p">)</span>
+
+<span class="c1"># (Example: use the model for something)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">nbu</span><span class="o">.</span><span class="n">new_sample</span><span class="p">(</span><span class="n">test_loader</span><span class="p">)</span>
+<span class="n">posterior_samples</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Successfully sampled from model'</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="creating-new-models">
+<h2><span class="section-number">4.3. </span>Creating New Models<a class="headerlink" href="#creating-new-models" title="Permalink to this headline">#</a></h2>
+<p>To ensure that there are consistent interfaces for all the models (to the
+benefit of users), and that common code is not duplicated between models (to the
+benefit of developers), all the models implemented in the codebase inherit from
+an abstract <a class="reference internal" href="#Model" title="Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code></a> class (found in <code class="docutils literal notranslate"><span class="pre">agnfinder/inference/inference.py:Model</span></code>).</p>
+<p>To create a new model, inherit the <a class="reference internal" href="#Model" title="Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code></a> class and ensure that
+you have implemented all the abstract properties and methods.</p>
+<p>The following shows the constructor, and abstract methods of the <a class="reference internal" href="#Model" title="Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code></a>
+class.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="Model">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">torch.nn.Module</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ABC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#Model" title="Permalink to this definition">#</a></dt>
+<dd><p>Base model class for AGNFinder</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="Model.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#spt.inference.base.ModelParams" title="spt.inference.base.ModelParams"><span class="pre">ModelParams</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite_results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">logging_callbacks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#Model.__init__" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mp</strong> (<a class="reference internal" href="#spt.inference.base.ModelParams" title="spt.inference.base.ModelParams"><em>ModelParams</em></a>) – The model parameters.</p></li>
+<li><p><strong>overwrite_results</strong> (<em>bool</em>) – Overwrite previous results when saving.</p></li>
+<li><p><strong>logging_callbacks</strong> (<em>list</em><em>[</em><em>Callable</em><em>[</em><em>[</em><a class="reference internal" href="#Model" title="Model"><em>Model</em></a><em>]</em><em>, </em><em>None</em><em>]</em><em>]</em>) – Functions executed when logging.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="Model.name">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#Model.name" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns a natural-language name for the model.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="Model.__repr__">
+<span class="sig-name descname"><span class="pre">__repr__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#Model.__repr__" title="Permalink to this definition">#</a></dt>
+<dd><p>Give a natural-language description of the model. Do include information
+such as <code class="docutils literal notranslate"><span class="pre">self.epochs</span></code>, <code class="docutils literal notranslate"><span class="pre">self.name</span></code> and <code class="docutils literal notranslate"><span class="pre">self.batch_size</span></code>, as well
+as other architecture-specific details for your specific model.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="Model.fpath">
+<span class="sig-name descname"><span class="pre">fpath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#Model.fpath" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns a file path to save the model to, which should be unique for
+every different parametrisation of the model.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="Model.preprocess">
+<span class="sig-name descname"><span class="pre">preprocess</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#Model.preprocess" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>Tensor</em>) – The inputs (usually photometric observations)</p></li>
+<li><p><strong>y</strong> (<em>Tensor</em>) – The targets (usually physical galaxy parameters)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The pre-processed parameters (e.g. cast to a specific data type, re-ordered or placed on a specific device’s memory.)</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="Model.trainmodel">
+<span class="sig-name descname"><span class="pre">trainmodel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_loader</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataLoader</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#InferenceParams" title="InferenceParams"><span class="pre">InferenceParams</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#Model.trainmodel" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>train_loader</strong> (<em>DataLoader</em>) – The PyTorch DataLoader containing the training data.</p></li>
+<li><p><strong>ip</strong> (<a class="reference internal" href="#InferenceParams" title="InferenceParams"><em>InferenceParams</em></a>) – Inference parameters containing details of the training procedure.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Note that any additional model-specific arguments can also be provided
+using the <code class="docutils literal notranslate"><span class="pre">*args</span></code> and <code class="docutils literal notranslate"><span class="pre">**kwargs</span></code>.</p>
+<p>This method has a decorator applied in the superclass (which is
+inherited by all sub-classes) which takes care of saving the trained
+model to disk (using <a class="reference internal" href="#Model.fpath" title="Model.fpath"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model.fpath</span></code></a>), as well as loading up an
+existing model rather than repeating training.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="Model.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">Tensor</span></span></span><a class="headerlink" href="#Model.sample" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>Tensor</em>) – The conditioning data, <span class="math notranslate nohighlight">\(\mathbf{x}\)</span>.</p></li>
+<li><p><strong>n_samples</strong> (<em>int</em>) – The number of samples to draw from the posterior.</p></li>
+</ul>
+</dd>
+</dl>
+<p>A convenience method for drawing (conditional) samples from <span class="math notranslate nohighlight">\(p(\mathbf{y} \vert
+\mathbf{x})\)</span> for a single conditioning point.</p>
+<p>Since different models may require additional parameters to arguments to
+perform the sampling, these can be provided using the <code class="docutils literal notranslate"><span class="pre">args</span></code> and
+<code class="docutils literal notranslate"><span class="pre">kwargs</span></code> parameters.</p>
+<p>This is the only function pertaining to the actual use of the models
+which is required to be consistent across models. Individual models may
+provide different methods to use them.</p>
+</dd></dl>
+</dd></dl>
+<section id="estimating-parameters">
+<h3><span class="section-number">4.3.1. </span>Estimating Parameters<a class="headerlink" href="#estimating-parameters" title="Permalink to this headline">#</a></h3>
+<p>The final stage is to estimate (statistics of) the parameters for real
+observations. For example, we might be interested in the (principle) mode and
+median of a parameter’s distribution.</p>
+<p>The code for doing this is in <code class="docutils literal notranslate"><span class="pre">agnfinder/inference/parameter_estimation.py</span></code>.
+This will use the model specified in <code class="docutils literal notranslate"><span class="pre">InferenceParams.model</span></code>, and that model’s
+corresponding configuration as defined in <code class="docutils literal notranslate"><span class="pre">config.py</span></code>.</p>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="san_inference.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title"><span class="section-number">5. </span>Inferring Galaxy Parameters (SAN)</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="sampling.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title"><span class="section-number">3. </span>Photometry Sampling</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">4. Inference Overview</a><ul>
+<li><a class="reference internal" href="#using-the-models">4.1. Using the Models</a></li>
+<li><a class="reference internal" href="#forwardmodelparameters">4.2. ForwardModelParameters</a><ul>
+<li><a class="reference internal" href="#general-inference-parameters">4.2.1. General Inference Parameters</a></li>
+<li><a class="reference internal" href="#model-parameters">4.2.2. Model Parameters</a></li>
+<li><a class="reference internal" href="#training-the-models">4.2.3. Training the models</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#creating-new-models">4.3. Creating New Models</a><ul>
+<li><a class="reference internal" href="#estimating-parameters">4.3.1. Estimating Parameters</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/scripts/furo.js"></script>
+    <script src="_static/clipboard.min.js"></script>
+    <script src="_static/copybutton.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>

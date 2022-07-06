@@ -1,0 +1,459 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+<meta property="og:title" content="3. Photometry Sampling" />
+  
+<meta property="og:type" content="website" />
+  
+<meta property="og:url" content="sampling.html" />
+  
+<meta property="og:description" content="This section repeatedly runs a forward model on various physical parameters (redshift, agn_mass, inclination, tage etc.) to simulate photometric observations, which we use in the inference section ..." />
+  <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="4. Inference Overview" href="inference.html" /><link rel="prev" title="2. Basic Usage" href="basic_usage.html" />
+
+    <link rel="shortcut icon" href="_static/favicon-32x32.png"/><meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
+        <title>3. Photometry Sampling - SPItorch</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">SPItorch</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">SPItorch</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">1. Installation Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="basic_usage.html">2. Basic Usage</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">3. Photometry Sampling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inference.html">4. Inference Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="san_inference.html">5. Inferring Galaxy Parameters (SAN)</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="photometry-sampling">
+<span id="sampling"></span><h1><span class="section-number">3. </span>Photometry Sampling<a class="headerlink" href="#photometry-sampling" title="Permalink to this headline">#</a></h1>
+<p>This section repeatedly runs a forward model on various physical parameters
+(redshift, agn_mass, inclination, tage etc.) to simulate photometric
+observations, which we use in the <a class="reference external" href="inference.html">inference</a> section to train a model to
+produce the <em>reverse</em> mapping: from photometric observations back to
+distributions over physical parameters.</p>
+<p>The code for the sampling procedure is in the <cite>spt/modelling</cite> directory.</p>
+<section id="forward-model-configuration">
+<h2><span class="section-number">3.1. </span>Forward Model Configuration<a class="headerlink" href="#forward-model-configuration" title="Permalink to this headline">#</a></h2>
+<p>Before running the sampling, we need to configure a forward model so that we can
+simulate observations. The forward model configuration is found under the
+<code class="docutils literal notranslate"><span class="pre">ForwardModelParams</span></code> class in the <code class="docutils literal notranslate"><span class="pre">config.py</span></code> file.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="ForwardModelParams">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ForwardModelParams</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">FilterCheck</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ParamConfig</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ConfigClass</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ForwardModelParams" title="Permalink to this definition">#</a></dt>
+<dd><p>A self-contained description of the parameters to use with a Prospector
+forward model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filters</strong> (<em>list</em><em>[</em><em>Filter</em><em>]</em>) – the filter library to use</p></li>
+<li><p><strong>build_obs_fn</strong> (<em>build_obs_fn_t</em>) – A function to turn an observation
+(<code class="docutils literal notranslate"><span class="pre">pd.Series</span></code>) into an observation dictionary.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_param_templates</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Any standard model parameter
+templates to apply.</p></li>
+<li><p><strong>model_params</strong> (<em>list</em><em>[</em><em>Parameter</em><em>]</em>) – A list of model parameter descriptions.</p></li>
+<li><p><strong>build_model_fn</strong> (<em>build_model_fn_t</em>) – A function to initialise the
+<code class="docutils literal notranslate"><span class="pre">SedModel</span></code> from the parameters.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sps_kwargs</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em>) – keyword arguments for building the sps.</p></li>
+<li><p><strong>build_sps_fn</strong> (<em>build_sps_fn_t</em>) – function to build the <code class="docutils literal notranslate"><span class="pre">sps</span></code> object, returning an <code class="docutils literal notranslate"><span class="pre">SSPBasis</span></code> object.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Example</dt>
+<dd class="field-even"><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">ForwardModelParams</span><span class="p">(</span><span class="n">FilterCheck</span><span class="p">,</span> <span class="n">ParamConfig</span><span class="p">,</span> <span class="n">ConfigClass</span><span class="p">):</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># Observations:</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="n">filters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Filter</span><span class="p">]</span> <span class="o">=</span> <span class="n">FilterLibrary</span><span class="p">[</span><span class="s1">'des'</span><span class="p">]</span>
+<span class="gp">... </span>    <span class="n">build_obs_fn</span><span class="p">:</span> <span class="n">build_obs_fn_t</span> <span class="o">=</span> <span class="n">spt</span><span class="o">.</span><span class="n">modelling</span><span class="o">.</span><span class="n">build_obs</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># Model parameters:</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="n">model_param_templates</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'parametric_sfh'</span><span class="p">]</span>
+<span class="gp">... </span>    <span class="n">model_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Parameter</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+<span class="gp">... </span>        <span class="n">Parameter</span><span class="p">(</span><span class="s1">'zred'</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">4.</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s1">'redshift, $z$'</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="n">Parameter</span><span class="p">(</span><span class="s1">'mass'</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">priors</span><span class="o">.</span><span class="n">LogUniform</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s1">'mass'</span><span class="p">,</span>
+<span class="gp">... </span>                  <span class="n">log_scale</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">disp_floor</span><span class="o">=</span><span class="mf">6.</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="n">Parameter</span><span class="p">(</span><span class="s1">'logzsol'</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.19</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s1">'$</span><span class="se">\\</span><span class="s1">log (Z/Z_</span><span class="se">\\</span><span class="s1">odot)$'</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="n">Parameter</span><span class="p">(</span><span class="s1">'dust2'</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">2.</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s1">'optical depth at 5500AA'</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="n">Parameter</span><span class="p">(</span><span class="s1">'tage'</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">13.</span><span class="p">,</span> <span class="mf">13.8</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s1">'Age, Gyr'</span><span class="p">,</span> <span class="n">disp_floor</span><span class="o">=</span><span class="mf">1.</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="n">Parameter</span><span class="p">(</span><span class="s1">'tau'</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="n">priors</span><span class="o">.</span><span class="n">LogUniform</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s1">'Gyr^{-1}'</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="p">]</span>
+<span class="gp">... </span>    <span class="n">build_model_fn</span><span class="p">:</span> <span class="n">build_model_fn_t</span> <span class="o">=</span> <span class="n">spt</span><span class="o">.</span><span class="n">modelling</span><span class="o">.</span><span class="n">build_model</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># SPS parameters:</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="n">sps_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'zcontinuous'</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="gp">... </span>    <span class="n">build_sps_fn</span><span class="p">:</span> <span class="n">build_sps_fn_t</span> <span class="o">=</span> <span class="n">spt</span><span class="o">.</span><span class="n">modelling</span><span class="o">.</span><span class="n">build_sps</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</dd></dl>
+<p>The forward model parameter descriptions are instances of the <code class="docutils literal notranslate"><span class="pre">Parameter</span></code>
+class, which accepts the following parameters:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code> is the name of this parameter, which must be recognized by FSPS. See
+&lt;<a class="reference external" href="https://dfm.io/python-fsps/current/stellarpop_api/">https://dfm.io/python-fsps/current/stellarpop_api/</a>&gt; for these.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">range_min</span></code> is the minimum value that you expect this parameter to take.
+Some prior distributions used in Prospector (e.g. the <code class="docutils literal notranslate"><span class="pre">ClippedNormal</span></code>) will
+reject samples drawn outside this range.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">init</span></code> is the initial value to set this parameter to (i.e. the starting
+point for optimisation metohds)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">range_max</span></code> is analagous to <code class="docutils literal notranslate"><span class="pre">range_min</span></code>, and specifies the highest value
+you expect this parameter to take.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">prior</span></code> is a priors distribution class from <code class="docutils literal notranslate"><span class="pre">prospect.models.priors</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">prior_kwargs</span></code> are keyword arguments provided while initialising the <code class="docutils literal notranslate"><span class="pre">prior</span></code>
+distribution above.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log_scale</span></code> this is a boolean indicating whether the values follow a
+logarithmic scale.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model_this</span></code> is a boolean parameter which indicates whether or not to model
+this parameter (otherwise, it is treated as a ‘fixed’ parameter). <code class="docutils literal notranslate"><span class="pre">True</span></code> by
+default.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">units</span></code> is a readable description of the units for this parameter. Note that
+if this string begins with <code class="docutils literal notranslate"><span class="pre">log*</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">log_mass</span></code>), then the
+<code class="docutils literal notranslate"><span class="pre">range_min</span></code>, <code class="docutils literal notranslate"><span class="pre">init</span></code>, <code class="docutils literal notranslate"><span class="pre">range_max</span></code> and <code class="docutils literal notranslate"><span class="pre">disp_floor</span></code> are exponentiated
+(base 10`) before use. Note however that the <code class="docutils literal notranslate"><span class="pre">prior_kwargs</span></code>, if provided,
+are <cite>not</cite> modified: it is up to you to transform them appropirately.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">disp_floor</span></code> sets the initial dispertion to use when using clouds of EMCEE
+walkers (only for MCMC sampling with Prospector).</p></li>
+</ul>
+</section>
+<section id="running-the-sampling-procedure">
+<h2><span class="section-number">3.2. </span>Running the Sampling Procedure<a class="headerlink" href="#running-the-sampling-procedure" title="Permalink to this headline">#</a></h2>
+<p>Running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">sim</span></code> will run the simulation code in the <code class="docutils literal notranslate"><span class="pre">__main__</span></code> section of
+<code class="docutils literal notranslate"><span class="pre">agnfinder/inference/inference.py</span></code>, using the configurations in
+<code class="docutils literal notranslate"><span class="pre">agnfinder/config.py</span></code>.</p>
+<p>This is a multi-threaded program which runs on CPUs only. We use processes
+rather than threads due to Python’s GIL. With <span class="math notranslate nohighlight">\(P\)</span> processes used to
+produce <span class="math notranslate nohighlight">\(N\)</span> mock photometric observations from using parameters drawn
+uniformly at random from the parameter space, each process works to produce
+<span class="math notranslate nohighlight">\(\frac{N}{P}\)</span> ‘observations’, with the parameter space partitioned among
+processes along the redshift dimension.</p>
+<p>Each process writes its samples to a ‘partial’ results file before exiting. All
+of these partial results are finally combined (and shuffled) into a final hdf5
+file, ready for use in training a model. Generating 1M samples will result in
+approximatly 125Mb of data. Since this combination step is run in-memory, do
+bear the memory requirements in mind if you are simulating large catalogues
+(e.g. 100M samples).</p>
+<section id="free-parameter-configurations">
+<h3><span class="section-number">3.2.1. </span>Free Parameter Configurations<a class="headerlink" href="#free-parameter-configurations" title="Permalink to this headline">#</a></h3>
+<p>The <em>free parameters</em> are the physical parameters that are allowed to vary. The
+default configuration is as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">FreeParams</span><span class="p">(</span><span class="n">FreeParameters</span><span class="p">):</span>
+    <span class="n">redshift</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">6.</span><span class="p">)</span>
+    <span class="n">log_mass</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">log_agn_mass</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">7</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="mi">15</span><span class="p">))</span>
+    <span class="n">log_agn_torus_mass</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">7</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="mi">15</span><span class="p">))</span>
+    <span class="n">dust2</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">2.</span><span class="p">)</span>
+    <span class="n">tage</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.001</span><span class="p">,</span> <span class="mf">13.8</span><span class="p">)</span>
+    <span class="n">log_tau</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="mf">.1</span><span class="p">),</span> <span class="n">math</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="mi">30</span><span class="p">))</span>
+    <span class="n">agn_eb_v</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">inclination</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">90.</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This defines our prior assumptions about the reasonable range of values that
+these parameters may take, and hence the (in this case) 9-dimensional hyper-cube
+from which parameters are uniformly sampled during the simulation process.</p>
+<p>Parameters whose names begin with <code class="docutils literal notranslate"><span class="pre">log_</span></code> are exponentiated before use. For
+example, above the <code class="docutils literal notranslate"><span class="pre">log_agn_mass</span></code> parameter constrains the brightness of the
+galaxy, from <span class="math notranslate nohighlight">\(10^{-7}\)</span> to <span class="math notranslate nohighlight">\(15\)</span>.</p>
+</section>
+<section id="sampling-parameters">
+<h3><span class="section-number">3.2.2. </span>Sampling Parameters<a class="headerlink" href="#sampling-parameters" title="Permalink to this headline">#</a></h3>
+<p>These are parameters relating to the sampling or simulation procedure itself:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">SamplingParams</span><span class="p">(</span><span class="n">ConfigClass</span><span class="p">):</span>
+    <span class="n">n_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">40000000</span>
+    <span class="n">concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
+    <span class="n">save_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'./data/cubes/my_simulation_results'</span>
+    <span class="n">noise</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># deprecated; ignore</span>
+    <span class="n">filters</span><span class="p">:</span> <span class="n">FilterSet</span> <span class="o">=</span> <span class="n">Filters</span><span class="o">.</span><span class="n">DES</span>  <span class="c1"># {Euclid, DES, Reliable, All}</span>
+    <span class="n">shuffle</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># whether to shuffle final samples</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">n_samples</span></code> determines the number of samples generated across all the
+processes. The <code class="docutils literal notranslate"><span class="pre">concurrency</span></code> parameter is best set according to how much RAM
+you have on a particular host: since we use <em>processes</em> and not <em>threads</em>, the
+entire model is re-created for each worker and must be stored in memory.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">filters</span></code> parameter selects between pre-defined sets of filters, defined
+in <code class="docutils literal notranslate"><span class="pre">agnfinder/prospector/load_photometry</span></code>. To use a different set of filters,
+you should edit this file, and add a new filter to the <code class="docutils literal notranslate"><span class="pre">Filters</span></code> class in
+<code class="docutils literal notranslate"><span class="pre">agnfinder/types.py</span></code>.</p>
+<p>You can find various other parameters relating to the model used to simulate the
+photometric observations in the <code class="docutils literal notranslate"><span class="pre">agnfinder/config.py</span></code> file.</p>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="inference.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title"><span class="section-number">4. </span>Inference Overview</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="basic_usage.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title"><span class="section-number">2. </span>Basic Usage</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">3. Photometry Sampling</a><ul>
+<li><a class="reference internal" href="#forward-model-configuration">3.1. Forward Model Configuration</a></li>
+<li><a class="reference internal" href="#running-the-sampling-procedure">3.2. Running the Sampling Procedure</a><ul>
+<li><a class="reference internal" href="#free-parameter-configurations">3.2.1. Free Parameter Configurations</a></li>
+<li><a class="reference internal" href="#sampling-parameters">3.2.2. Sampling Parameters</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/scripts/furo.js"></script>
+    <script src="_static/clipboard.min.js"></script>
+    <script src="_static/copybutton.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>
