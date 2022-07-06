@@ -100,11 +100,9 @@ math_eqref_format = "Equation {number}"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    "top_of_page_button": "None",
-}
+html_theme_options = { }
 
-github_url = "https://github.com/maximerobeyns/spitorch"
+github_url = "https://github.com/maximerobeyns/SPItorch"
 # html_logo = "./_static/base_logo.png"
 html_favicon = "./_static/favicon-32x32.png"
 html_show_sphinx = False

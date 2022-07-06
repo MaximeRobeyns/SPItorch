@@ -8,7 +8,7 @@ parameters of galaxies and other stellar objects.
 
 ## Installation
 
-The [installation guide](https://maximerobeyns.github.io/spitorch/installation.html)
+The [installation guide](https://maximerobeyns.github.io/SPItorch/installation.html)
 contains detailed information on how to install the project, but for users
 looking to get started quickly, the following steps should be sufficient.
 
@@ -42,5 +42,5 @@ the `python` executable in your `PATH` points to the executable/version you want
 to use.
 
 For more usage information, please see the
-[documentation](https://maximerobeyns.github.io/spitorch/) or the [tutorial notebooks](https://github.com/MaximeRobeyns/SPItorch/tree/master/tutorial_notebooks).
+[documentation](https://maximerobeyns.github.io/SPItorch/) or the [tutorial notebooks](https://github.com/MaximeRobeyns/SPItorch/tree/master/tutorial_notebooks).
 
