@@ -14,21 +14,22 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
-"""spt is the main module for SPItorch, a package of inferring the properties
+"""
+spt is the main module for SPItorch, a package of inferring the properties
 of stellar populations in PyTorch.
 """
 
-__version__ = "0.0.1"
-
 import os, sys
 
-os.environ['SPS_HOME'] = os.path.split(__path__[0])[0] + '/deps/fsps' # type: ignore
+os.environ["SPS_HOME"] = os.path.split(__path__[0])[0] + "/deps/fsps"  # type: ignore
 
+from .__version__ import __version__
 from .load_photometry import *
 from .modelling.prospector import Prospector
 from .utils import splash_screen
 
 from spt.logs import configure_logging
+
 configure_logging()
 
 # If user is running in interactive tty, print splash screen

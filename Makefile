@@ -67,7 +67,7 @@ install: ## To install everything (requires internet connection)
 
 kernel:  ## To setup a Jupyter kernel to run notebooks in SPItorch virtual env
 	python -m ipykernel install --user --name agnvenv \
-		--display-name "SPItorch (Python 3.9)"
+		--display-name "SPItorch (Python 3.10)"
 
 lab: ## To start a Jupyter Lab server
 	@export SPS_HOME=$(shell pwd)/deps/fsps

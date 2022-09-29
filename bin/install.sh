@@ -18,6 +18,4 @@ if [[ ! -d ./deps/fsps ]]; then
     # rm ./deps/fsps.tar.gz
 fi
 
-pip install -r requirements.txt
-
-pip install -e .
+pip install -e .[all] --extra-index-url https://download.pytorch.org/whl/cu113
