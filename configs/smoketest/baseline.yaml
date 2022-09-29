@@ -1,0 +1,12 @@
+# @package _global_
+
+run:
+  _target_: spt.RunConfig
+  id: baseline
+  task: smoketest
+  description: |-
+    Tests whether the application runs correctly.
+  for_version: 1.2.0
+
+smoketest:
+  foo: bar

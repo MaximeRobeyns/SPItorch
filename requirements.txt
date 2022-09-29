@@ -5,6 +5,7 @@ dynesty==1.1
 emcee==3.1.1
 fsps==0.4.1
 h5py==3.6.0
+hydra-core==1.2.0
 ipywidgets==8.0.2
 jupyterlab==3.2.8
 jupyterlab-pygments==0.1.2
@@ -18,6 +19,7 @@ pyDOE2==1.3.0
 ray==1.13.0
 rich==11.1.0
 schwimmbad==0.3.2
+semver==2.13.0
 torch
 torchvision
 tqdm==4.63.0

@@ -1,0 +1,30 @@
+# whether to print out the configuration at the beginning of a run.
+print_config: false
+verbose: false
+
+run:
+  _target_: spt.RunConfig
+  id: smoke_test
+  task: smoke_test
+  description: Test if the runner works.
+  for_version: 1.2.0
+
+dist:
+  # Parameters for distributed computation.
+  _target_: spt.DistConfig
+
+  # The PyTorch distributed backend to use, either [nccl | mpi | gloo | none]
+  backend: nccl
+
+  # The following are overridden when you launch a DDP job with slurm_launcher.
+  # Don't edit these manually.
+  world_size: 1
+  rank: 0
+  master_addr: localhost
+  master_port: 54321
+  comm_port: 54322
+
+defaults:
+  - hydra: functional
+  - _self_
+

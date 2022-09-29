@@ -1,0 +1,15 @@
+# @package _global_
+
+run:
+  _target_: spt.RunConfig
+  id: dev
+  description: |-
+    Development run for smoketest.
+
+  for_version: 1.2.0
+
+dist:
+  backend: gloo
+
+smoketest:
+  foo: baz

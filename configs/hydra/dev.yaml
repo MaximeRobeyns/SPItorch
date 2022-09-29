@@ -1,0 +1,5 @@
+run:
+  dir: outputs/${run.task}_${run.id}
+output_subdir: config_values
+job:
+  chdir: true

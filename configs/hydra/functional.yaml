@@ -1,0 +1,12 @@
+# Functional configurations
+# You shouldn't have to touch these in normal usage.
+
+output_subdir: config_values
+job:
+  chdir: true
+run:
+  dir: outputs/${run.task}_${run.id}/${now:%Y-%m-%d_%H-%M-%S}
+help:
+  app_name: "SPITorch"
+  header: "\n\tSPITorch Runner Help\n"
+  footer: "Use --hydra-help to view Hydra specific help.\n"

@@ -16,20 +16,26 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 """Project-wide utilities file"""
 
+import os
+import sys
 import time
 import torch as t
 import numpy as np
 import pprint
+import semver
 import logging
 
 from enum import Enum
-from typing import Any, Sized
+from typing import Any, Sized, Optional
+from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Dataset, random_split, Subset
 
 from spt.types import Tensor
+from spt.__version__ import __version__
+from spt.ddp_utils import DDP_IPC
 
 
-class ConfigClass():
+class ConfigClass:
     """ConfigClass is an abstract base class for all SPItorch configuration
     objects.
 
@@ -37,26 +43,32 @@ class ConfigClass():
     """
 
     def __init__(self) -> None:
-        logging.debug(f'New configuration object: {self}')
+        logging.debug(f"New configuration object: {self}")
 
     def __repr__(self) -> str:
         width = 60
         r = f'\n\n{width*"="}\n'
-        c = f'Configuration class `{type(self).__name__}`'
+        c = f"Configuration class `{type(self).__name__}`"
         n = len(c)
         nn = int((width - n) / 2)
-        r += nn * ' ' + c + f'\n{width*"-"}\n\n'
-        members = [a for a in dir(self) if not callable(getattr(self, a))\
-                   and not a.startswith("__")]
+        r += nn * " " + c + f'\n{width*"-"}\n\n'
+        members = [
+            a
+            for a in dir(self)
+            if not callable(getattr(self, a)) and not a.startswith("__")
+        ]
         for m in members:
-            r += f'{m}: {pprint.pformat(getattr(self, m), compact=True)}\n'
+            r += f"{m}: {pprint.pformat(getattr(self, m), compact=True)}\n"
             # r += f'{m}: {pprint(getattr(self, m), max_length=80)}\n'
-        r += '\n' + width * '=' + '\n\n'
+        r += "\n" + width * "=" + "\n\n"
         return r
 
     def to_dict(self) -> dict[str, Any]:
-        members = [a for a in dir(self) if not callable(getattr(self, a))\
-                   and not a.startswith("__")]
+        members = [
+            a
+            for a in dir(self)
+            if not callable(getattr(self, a)) and not a.startswith("__")
+        ]
         d = {}
         for m in members:
             d[m] = getattr(self, m)
@@ -71,9 +83,9 @@ class ConfigClass():
 colours = {
     "b": "#025159",  # blue(ish)
     "o": "#F28705",  # orange
-    "lb": "#03A696", # light blue
-    "do": "#F25D27", # dark orange
-    "r": "#F20505"   # red.
+    "lb": "#03A696",  # light blue
+    "do": "#F25D27",  # dark orange
+    "r": "#F20505",  # red.
 }
 
 
@@ -88,13 +100,16 @@ def splash_screen():
 
     console = Console(width=80)
     console.rule()
-    info = Padding(f'''
+    info = Padding(
+        f"""
     SPItorch
 
     Version: {__version__}, {time.ctime()}
     Copyright (C) 2019-20 Mike Walmsley <walmsleymk1@gmail.com>
     Copyright (C) 2022 Maxime Robeyns <dev@maximerobeyns.com>
-            ''', (1, 8))
+            """,
+        (1, 8),
+    )
     console.print(info, highlight=False, markup=False)
     console.rule()
 
@@ -105,17 +120,58 @@ def splash_screen():
     lc.rule()
     for h in logging.getLogger().handlers:
         if isinstance(h, lhandlers.RotatingFileHandler):
-            r = logging.makeLogRecord({
-                "msg": '\n'+lc.end_capture(),
-                "level": logging.INFO,
-                })
+            r = logging.makeLogRecord(
+                {
+                    "msg": "\n" + lc.end_capture(),
+                    "level": logging.INFO,
+                }
+            )
             h.handle(r)
+
+
+def log_run_description(cfg: DictConfig):
+    """Prints run description at root of output directory.
+
+    Args:
+        cfg: the Hydra config
+    """
+    if cfg.print_config:
+        print(OmegaConf.to_yaml(cfg))
+
+    if semver.compare(cfg.run.for_version, __version__) < 0:
+        log = logging.getLogger(__name__)
+        log.error(
+            (
+                f"\n\n\n\tConfiguration was written for version {cfg.run.for_version},"
+                f"\n\tyet the current code version is {__version__}!"
+                "\n\n\tPlease check that everything is still compatible,\n\tthen update "
+                "the version number in your config.\n\n\n"
+            )
+        )
+        sys.exit(1)
+
+    with open("README.txt", "w") as f:
+        f.write(cfg.run.description)
+
+
+def init_hydra_run(cfg: DictConfig, comm: Optional[DDP_IPC]):
+    """Send the current working directory (newly created on rank 0) to the
+    other ranks to share logging / tensorboard directories."""
+    if cfg.dist.world_size > 1:
+        assert comm is not None
+        if cfg.dist.rank == 0:
+            comm.bcast(os.getcwd(), "CWD")
+        else:
+            os.chdir(comm.accept("CWD"))
+
+    if cfg.dist.rank == 0:
+        log_run_description(cfg)
 
 
 def new_sample(dloader: DataLoader, n: int = 1) -> tuple[Tensor, Tensor]:
     dset: Dataset = dloader.dataset
     rand_idxs = t.randperm(len(dset))[:n]
-    logging.debug('Random test index :', rand_idxs)
+    logging.debug("Random test index :", rand_idxs)
     # [n, data_dim]; concatenate along rows: dim 0
     xs, ys = [], []
     for i in rand_idxs:
@@ -129,17 +185,19 @@ def new_sample(dloader: DataLoader, n: int = 1) -> tuple[Tensor, Tensor]:
     return t.cat(xs, 0).squeeze(), t.cat(ys, 0).squeeze()
 
 
-def train_test_split(dataset: Dataset, split_ratio: float = 0.9
-                    ) -> tuple[Subset, Subset]:
-    assert(isinstance(dataset, Sized))
+def train_test_split(
+    dataset: Dataset, split_ratio: float = 0.9
+) -> tuple[Subset, Subset]:
+    assert isinstance(dataset, Sized)
     n_train = int(len(dataset) * split_ratio)
     n_test = len(dataset) - n_train
     train_set, test_set = random_split(dataset, [n_train, n_test])
     return train_set, test_set
 
 
-def get_median_mode(samples: np.ndarray, nbins: int = 1000
-                    ) -> tuple[np.ndarray, np.ndarray]:
+def get_median_mode(
+    samples: np.ndarray, nbins: int = 1000
+) -> tuple[np.ndarray, np.ndarray]:
     # sample shape: (N x free_params)
 
     # compute median
@@ -149,7 +207,7 @@ def get_median_mode(samples: np.ndarray, nbins: int = 1000
     for i in range(samples.shape[1]):
         n, b = np.histogram(samples[:, i], nbins)
         m = np.argmax(n)
-        mode.append((b[m] + b[m+1])/2)
+        mode.append((b[m] + b[m + 1]) / 2)
     np_mode = np.array(mode)
 
     return median, np_mode
