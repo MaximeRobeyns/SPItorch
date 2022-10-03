@@ -18,4 +18,10 @@ if [[ ! -d ./deps/fsps ]]; then
     # rm ./deps/fsps.tar.gz
 fi
 
+# These flags will fix any issues arising from compiling package wheels using a
+# (major) python version that differs from the current python version in your
+# path.
+HAMMER="--force-reinstall --ignore-installed --no-binary :all:"
+
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu113 #  $HAMMER
 pip install -e .[all] --extra-index-url https://download.pytorch.org/whl/cu113

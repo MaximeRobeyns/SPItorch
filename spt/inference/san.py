@@ -104,6 +104,7 @@ class TruncatedLikelihood:
         # Return the upper bound
         raise NotImplementedError
 
+
 class Gaussian(SAN_Likelihood):
     """Univariate Gaussian likelihood for each dimension"""
 
@@ -115,16 +116,13 @@ class Gaussian(SAN_Likelihood):
 
     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         loc, scale = self._extract_params(params)
-        return t.distributions.Normal(
-                loc.squeeze(), scale.squeeze()).log_prob(value)
+        return t.distributions.Normal(loc.squeeze(), scale.squeeze()).log_prob(value)
 
     def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
-        return t.distributions.Normal(
-                *self._extract_params(params)).sample()
+        return t.distributions.Normal(*self._extract_params(params)).sample()
 
     def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
-        return t.distributions.Normal(
-                *self._extract_params(params)).rsample()
+        return t.distributions.Normal(*self._extract_params(params)).rsample()
 
 
 class Laplace(SAN_Likelihood):
@@ -137,23 +135,21 @@ class Laplace(SAN_Likelihood):
         return loc.squeeze(), squareplus_f(scale.squeeze())
 
     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
-        return t.distributions.Laplace(
-                *self._extract_params(params)).log_prob(value)
+        return t.distributions.Laplace(*self._extract_params(params)).log_prob(value)
 
     def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
-        return t.distributions.Laplace(
-                *self._extract_params(params)).sample()
+        return t.distributions.Laplace(*self._extract_params(params)).sample()
 
     def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
-        return t.distributions.Laplace(
-                *self._extract_params(params)).rsample()
+        return t.distributions.Laplace(*self._extract_params(params)).rsample()
 
 
 class MoB(SAN_Likelihood, TruncatedLikelihood):
     """Models every dimension with a K-component mixture of Beta distributions"""
 
-    def __init__(self, K: int, lims: Tensor, mult_eps: float=1e-4,
-                 abs_eps: float=1e-4):
+    def __init__(
+        self, K: int, lims: Tensor, mult_eps: float = 1e-4, abs_eps: float = 1e-4
+    ):
         """Mixture of Beta distributions.
 
         Args:
@@ -198,8 +194,8 @@ class MoB(SAN_Likelihood, TruncatedLikelihood):
         return f(squareplus_f(c1)), f(squareplus_f(c2)), f(k)
 
     def _stabilise(self, S: Tensor) -> Tensor:
-        while not S.gt(0.).all():
-            S = t.where(S.le(0.), S.abs()*(1.+self.mult_eps)+self.abs_eps, S)
+        while not S.gt(0.0).all():
+            S = t.where(S.le(0.0), S.abs() * (1.0 + self.mult_eps) + self.abs_eps, S)
             # S = S.abs()*(1.+self.mult_eps) + self.abs_eps
         return S
 
@@ -239,10 +235,10 @@ class MoB(SAN_Likelihood, TruncatedLikelihood):
         comp_samples = self._stable_betas(c1, c2).rsample(sample_shape)
 
         # gather along the k dimension
-        mix_sample_r = mix_sample.reshape(
-            mix_shape + t.Size([1] * (len(es) + 1)))
+        mix_sample_r = mix_sample.reshape(mix_shape + t.Size([1] * (len(es) + 1)))
         mix_sample_r = mix_sample_r.repeat(
-            t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
+            t.Size([1] * len(mix_shape)) + t.Size([1]) + es
+        )
 
         samples = t.gather(comp_samples, gather_dim, mix_sample_r)
         return samples.squeeze(gather_dim)
@@ -251,7 +247,7 @@ class MoB(SAN_Likelihood, TruncatedLikelihood):
 class MoG(SAN_Likelihood):
     """Models every dimension with a K-component mixture of Gaussians"""
 
-    def __init__(self, K: int, mult_eps: float=1e-4, abs_eps: float=1e-4):
+    def __init__(self, K: int, mult_eps: float = 1e-4, abs_eps: float = 1e-4):
         """Mixture of Gaussians.
 
         Args:
@@ -280,8 +276,8 @@ class MoG(SAN_Likelihood):
         return f(loc), f(squareplus_f(scale)), f(k)
 
     def _stabilise(self, S: Tensor) -> Tensor:
-        while not S.gt(0.).all():
-            S = t.where(S.le(0.), S.abs()*(1.+self.mult_eps)+self.abs_eps, S)
+        while not S.gt(0.0).all():
+            S = t.where(S.le(0.0), S.abs() * (1.0 + self.mult_eps) + self.abs_eps, S)
             # S = S.abs()*(1.+self.mult_eps) + self.abs_eps
         return S
 
@@ -321,10 +317,10 @@ class MoG(SAN_Likelihood):
         comp_samples = self._stable_norms(loc, scale).rsample(sample_shape)
 
         # gather along the k dimension
-        mix_sample_r = mix_sample.reshape(
-            mix_shape + t.Size([1] * (len(es) + 1)))
+        mix_sample_r = mix_sample.reshape(mix_shape + t.Size([1] * (len(es) + 1)))
         mix_sample_r = mix_sample_r.repeat(
-            t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
+            t.Size([1] * len(mix_shape)) + t.Size([1]) + es
+        )
 
         samples = t.gather(comp_samples, gather_dim, mix_sample_r)
         return samples.squeeze(gather_dim)
@@ -336,9 +332,15 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
     parameter limits.
     """
 
-    def __init__(self, lims: Tensor, K: int, mult_eps: float = 1e-4,
-                 abs_eps: float = 1e-4, trunc_eps: float = 1e-3,
-                 validate_args: bool = True):
+    def __init__(
+        self,
+        lims: Tensor,
+        K: int,
+        mult_eps: float = 1e-4,
+        abs_eps: float = 1e-4,
+        trunc_eps: float = 1e-3,
+        validate_args: bool = True,
+    ):
         """Truncated mixture of Gaussians. We work with tensors of size
         [B, D, K], for B a (possibly multi-dimensional) batch shape, D the
         number of dimensions in the mixture, and K the number of mixture
@@ -380,23 +382,24 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
         return f(loc), f(squareplus_f(scale)), f(k)
 
     def _stabilise(self, S: Tensor) -> Tensor:
-        while not S.gt(0.).all():
-            S = t.where(S.le(0.), S.abs()*(1.+self.mult_eps)+self.abs_eps, S)
+        while not S.gt(0.0).all():
+            S = t.where(S.le(0.0), S.abs() * (1.0 + self.mult_eps) + self.abs_eps, S)
             # S = S.abs()*(1.+self.mult_eps) + self.abs_eps
         return S
 
-    def _stable_norms(self, loc: Tensor, scale: Tensor, A: Tensor, B: Tensor
-                      ) -> TruncatedNormal:
+    def _stable_norms(
+        self, loc: Tensor, scale: Tensor, A: Tensor, B: Tensor
+    ) -> TruncatedNormal:
         # for numerical stability, don't get too close to the edge!
         loc = loc.clamp(A + self.trunc_eps, B - self.trunc_eps)
         try:
             return TruncatedNormal(loc, scale, A, B, self._val_args)
         except ValueError:  # constraint violation
-            return TruncatedNormal(loc, self._stabilise(scale), A, B,
-                                   self._val_args)
+            return TruncatedNormal(loc, self._stabilise(scale), A, B, self._val_args)
 
-    def _get_bounds(self, loc: Tensor, d: Optional[int] = None
-                    ) -> tuple[Tensor, Tensor]:
+    def _get_bounds(
+        self, loc: Tensor, d: Optional[int] = None
+    ) -> tuple[Tensor, Tensor]:
         if d is None:  # [B, D, n_params]
             A = self._lower[(None,) * (loc.dim() - 2) + (..., None)]
             B = self._upper[(None,) * (loc.dim() - 2) + (..., None)]
@@ -407,7 +410,9 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
         B = B.expand(loc.shape).to(loc.device, loc.dtype)
         return A, B
 
-    def _gmm_from_params(self, params: Tensor, d: Optional[int] = None) -> MixtureSameFamily:
+    def _gmm_from_params(
+        self, params: Tensor, d: Optional[int] = None
+    ) -> MixtureSameFamily:
         loc, scale, k = self._extract_params(params)
         cat = t.distributions.Categorical(logits=k)
         A, B = self._get_bounds(loc, d)
@@ -445,10 +450,10 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
         comp_samples = self._stable_norms(loc, scale, A, B).rsample().nan_to_num()
 
         # gather along the kth dimension
-        mix_sample_r = mix_sample.reshape(
-            mix_shape + t.Size([1] * (len(es) + 1)))
+        mix_sample_r = mix_sample.reshape(mix_shape + t.Size([1] * (len(es) + 1)))
         mix_sample_r = mix_sample_r.repeat(
-            t.Size([1] * len(mix_shape)) + t.Size([1]) + es)
+            t.Size([1] * len(mix_shape)) + t.Size([1]) + es
+        )
         samples = t.gather(comp_samples, gather_dim, mix_sample_r)
         return samples.squeeze(gather_dim)
 
@@ -465,7 +470,7 @@ class MoST(SAN_Likelihood):
         """
         self.K = K
 
-    name: str =  "MoST"
+    name: str = "MoST"
 
     def n_params(self) -> int:
         return 3 * self.K  # loc, scale, mixture weight.
@@ -473,12 +478,16 @@ class MoST(SAN_Likelihood):
     def _extract_params(self, params: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         B = params.size(0)
         loc, scale, k = params.reshape(B, -1, self.K, 3).tensor_split(3, 3)
-        return loc.squeeze(-1), squareplus_f(scale).squeeze(-1), F.softmax(k, -1).squeeze(-1)
+        return (
+            loc.squeeze(-1),
+            squareplus_f(scale).squeeze(-1),
+            F.softmax(k, -1).squeeze(-1),
+        )
 
     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
         loc, scale, k = self._extract_params(params)
         cat = t.distributions.Categorical(k)
-        sts = t.distributions.StudentT(1., loc, scale)
+        sts = t.distributions.StudentT(1.0, loc, scale)
         return t.distributions.MixtureSameFamily(cat, sts).log_prob(value)
 
     def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
@@ -486,7 +495,7 @@ class MoST(SAN_Likelihood):
         loc, scale, k = params.reshape(B, self.K, 3).tensor_split(3, 2)
         loc, scale = loc.squeeze(-1), squareplus_f(scale).squeeze(-1)
         cat = t.distributions.Categorical(F.softmax(k, -1).squeeze(-1))
-        sts = t.distributions.StudentT(1., loc, scale)
+        sts = t.distributions.StudentT(1.0, loc, scale)
         return t.distributions.MixtureSameFamily(cat, sts).sample()
 
     def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
@@ -614,16 +623,17 @@ class SANv2Params(SANParams):
         pass
 
 
-
 # Main SAN Class ==============================================================
 
 
 class SAN(Model):
-
-    def __init__(self, mp: SANParams,
-                 logging_callbacks: list[Callable] = [],
-                 init_modules: bool = True):
-        """"Sequential autoregressive network" implementation.
+    def __init__(
+        self,
+        mp: SANParams,
+        logging_callbacks: list[Callable] = [],
+        init_modules: bool = True,
+    ):
+        """ "Sequential autoregressive network" implementation.
 
         Args:
             mp: the SAN model parameters, set in `config.py`.
@@ -644,9 +654,12 @@ class SAN(Model):
             else:
                 self.limits = mp.limits.to(mp.device, mp.dtype)
             if not self.likelihood.supports_lim:
-                logging.warning((
-                    'SAN limits have been provided by the selected SAN likelihood'
-                    f'({self.likelihood.name}) does not support limits.'))
+                logging.warning(
+                    (
+                        "SAN limits have been provided by the selected SAN likelihood"
+                        f"({self.likelihood.name}) does not support limits."
+                    )
+                )
         else:
             self.limits = None
 
@@ -659,36 +672,40 @@ class SAN(Model):
         # Size: [mini-batch, likelihood_params]
         self.last_params: Optional[Tensor] = None
 
-        if mp.device == t.device('cuda'):
+        if mp.device == t.device("cuda"):
             self.to(mp.device, mp.dtype)
             self.likelihood.to(mp.device, mp.dtype)
         else:
-            self.likelihood.to(t.device('cpu'), mp.dtype)
+            self.likelihood.to(t.device("cpu"), mp.dtype)
 
         # Strange mypy error requires this to be put here although it is
         # perfectly well defined and typed in the super class ¯\_(ツ)_/¯
         self.savepath_cached: str = ""
 
-    name: str = 'SAN'
+    name: str = "SAN"
 
     def __repr__(self) -> str:
-        return (f'{self.name} with {self.likelihood.name} likelihood, '
-                f'module blocks of shape {self.module_shape} '
-                f'and {self.sequence_features} features between blocks trained '
-                f'for {self.epochs} epochs with batches of size {self.batch_size}')
+        return (
+            f"{self.name} with {self.likelihood.name} likelihood, "
+            f"module blocks of shape {self.module_shape} "
+            f"and {self.sequence_features} features between blocks trained "
+            f"for {self.epochs} epochs with batches of size {self.batch_size}"
+        )
 
-    def fpath(self, ident: str='') -> str:
+    def fpath(self, ident: str = "") -> str:
         """Returns a file path to save the model to, based on its parameters."""
-        base = './results/sanmodels/'
+        base = "./results/sanmodels/"
         s = self.module_shape + [self.sequence_features]
-        ms = '_'.join([str(l) for l in s])
-        name = (f'l{self.likelihood.name}_cd{self.cond_dim}'
-                f'_dd{self.data_dim}_ms{ms}_'
-                f'lp{self.likelihood.n_params()}_ln{self.layer_norm}_'
-                f'lr{self.lr}_ld{self.decay}_e{self.epochs}_'
-                f'bs{self.batch_size}_trsample{self.train_rsample}_')
-        name += 'lim_' if self.limits is not None else ''
-        self.savepath_cached = f'{base}{name}{ident}.pt'
+        ms = "_".join([str(l) for l in s])
+        name = (
+            f"l{self.likelihood.name}_cd{self.cond_dim}"
+            f"_dd{self.data_dim}_ms{ms}_"
+            f"lp{self.likelihood.n_params()}_ln{self.layer_norm}_"
+            f"lr{self.lr}_ld{self.decay}_e{self.epochs}_"
+            f"bs{self.batch_size}_trsample{self.train_rsample}_"
+        )
+        name += "lim_" if self.limits is not None else ""
+        self.savepath_cached = f"{base}{name}{ident}.pt"
 
         return self.savepath_cached
 
@@ -707,19 +724,26 @@ class SAN(Model):
         self.block_heads = nn.ModuleList()
 
         for (i, d) in enumerate(range(self.data_dim)):
-            b, h = self._sequential_block(self.cond_dim, d,
-                    self.first_module_shape if i == 0 else self.module_shape,
-                    out_shapes=[self.sequence_features, self.likelihood.n_params()],
-                    out_activations=[nn.ReLU, None])
+            b, h = self._sequential_block(
+                self.cond_dim,
+                d,
+                self.first_module_shape if i == 0 else self.module_shape,
+                out_shapes=[self.sequence_features, self.likelihood.n_params()],
+                out_activations=[nn.ReLU, None],
+            )
             self.network_blocks.append(b)
             self.block_heads.append(h)
 
-        self.opt = t.optim.Adam(self.parameters(), lr=self.lr,
-                                weight_decay=self.decay)
+        self.opt = t.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.decay)
 
-    def _sequential_block(self, cond_dim: int, d: int, module_shape: list[int],
-                          out_shapes: list[int], out_activations: list[Any]
-                          ) -> tuple[nn.Module, nn.ModuleList]:
+    def _sequential_block(
+        self,
+        cond_dim: int,
+        d: int,
+        module_shape: list[int],
+        out_shapes: list[int],
+        out_activations: list[Any],
+    ) -> tuple[nn.Module, nn.ModuleList]:
         """Initialises a single 'sequential block' of the network.
 
         Args:
@@ -743,27 +767,26 @@ class SAN(Model):
             hs = [cond_dim + out_shapes[0] + d] + module_shape
 
         for i, (j, k) in enumerate(zip(hs[:-1], hs[1:])):
-            block.add_module(name=f'B{d}L{i}', module=nn.Linear(j, k))
+            block.add_module(name=f"B{d}L{i}", module=nn.Linear(j, k))
             if self.layer_norm:
-                block.add_module(name=f'B{d}LN{i}', module=nn.LayerNorm(k))
-            block.add_module(name=f'B{d}A{i}', module=nn.ReLU())
+                block.add_module(name=f"B{d}LN{i}", module=nn.LayerNorm(k))
+            block.add_module(name=f"B{d}A{i}", module=nn.ReLU())
         block.to(self.device, self.dtype)
 
         hn: int = module_shape[-1]
         for i, h in enumerate(out_shapes):
             this_head = nn.Sequential()
-            this_head.add_module(name=f'H{d}:{i}H{i}', module=nn.Linear(hn, h))
+            this_head.add_module(name=f"H{d}:{i}H{i}", module=nn.Linear(hn, h))
 
             a = out_activations[i]
             if a is not None:
-                this_head.add_module(name=f'H{d}:{i}A{i}', module=a())
+                this_head.add_module(name=f"H{d}:{i}A{i}", module=a())
             heads.append(this_head)
         heads.to(self.device, self.dtype)
 
         return block, heads
 
-    def forward(self, x: Tensor, lp: bool = False,
-                rsample: bool = False) -> Tensor:
+    def forward(self, x: Tensor, lp: bool = False, rsample: bool = False) -> Tensor:
         """Runs the autoregressive model.
 
         Args:
@@ -784,8 +807,11 @@ class SAN(Model):
         B = x.shape[:-1]
         ys = t.empty(B + (0,), dtype=self.dtype, device=self.device)
         if lp:
-            self.last_params = t.empty(B + (0, self.likelihood.n_params()),
-                                       dtype=self.dtype, device=self.device)
+            self.last_params = t.empty(
+                B + (0, self.likelihood.n_params()),
+                dtype=self.dtype,
+                device=self.device,
+            )
         else:
             self.last_params = None
 
@@ -810,19 +836,26 @@ class SAN(Model):
 
             assert not y_d.isnan().all(), "NaN values returned from likelihood."
 
-            y_d = y_d[(...,) + (None, ) * (ys.dim() - y_d.dim())]
+            y_d = y_d[(...,) + (None,) * (ys.dim() - y_d.dim())]
 
             ys = t.cat((ys, y_d), -1)
             if lp:
-                self.last_params = t.cat((self.last_params, params.unsqueeze(-2)), x.dim()-1)
+                self.last_params = t.cat(
+                    (self.last_params, params.unsqueeze(-2)), x.dim() - 1
+                )
 
         # check we did the sampling right
         assert ys.shape == B + (self.data_dim,)
         return ys
 
-    def offline_train(self, train_loader: DataLoader, ip: InferenceParams,
-                      errs: Optional[Tensor] = None,
-                      *args, **kwargs) -> None:
+    def offline_train(
+        self,
+        train_loader: DataLoader,
+        ip: InferenceParams,
+        errs: Optional[Tensor] = None,
+        *args,
+        **kwargs,
+    ) -> None:
         """Train the SAN model offline.
 
         Args:
@@ -847,14 +880,15 @@ class SAN(Model):
 
                 # if the likelihood has limits, then filter the y values here:
                 if isinstance(self.likelihood, TruncatedLikelihood):
-                    mask = t.logical_and(y > self.likelihood.lower,
-                                         y < self.likelihood.upper).all(-1)
+                    mask = t.logical_and(
+                        y > self.likelihood.lower, y < self.likelihood.upper
+                    ).all(-1)
                     x, y = x[mask], y[mask]
 
                 # The following implicitly updates self.last_params, and
                 # returns y_hat (a sample from p(y | x))
                 _ = self.forward(x, True, self.train_rsample)
-                assert (self.last_params is not None)
+                assert self.last_params is not None
 
                 # Minimise the NLL of true ys using training parameters
                 LP = self.likelihood.log_prob(y, self.last_params)
@@ -864,25 +898,33 @@ class SAN(Model):
                 loss.backward()
                 self.opt.step()
 
-                if i % ip.logging_frequency == 0 or i == len(train_loader)-1:
+                if i % ip.logging_frequency == 0 or i == len(train_loader) - 1:
                     # Run through all logging functions
                     [cb(self) for cb in self.logging_callbacks]
                     logging.info(
-                        "Epoch: {:02d}/{:02d}, Batch: {:05d}/{:d}, Loss {:9.4f}"
-                        .format(e+1, self.epochs, i, len(train_loader)-1,
-                                loss.item()))
+                        "Epoch: {:02d}/{:02d}, Batch: {:05d}/{:d}, Loss {:9.4f}".format(
+                            e + 1, self.epochs, i, len(train_loader) - 1, loss.item()
+                        )
+                    )
             self.checkpoint(ip.ident)
 
         # Pre-emptively put model in evaluation mode.
         self.eval()
 
-
     @typing.no_type_check
-    def hmc_retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
-                              P: Model, epochs: int, K: int, lr: float = 3e-4,
-                              decay: float = 1e-4, logging_frequency: int = 1000,
-                              simplified: bool = True, errs: Optional[Tensor] = None,
-                              ) -> None:
+    def hmc_retrain_procedure(
+        self,
+        train_loader: DataLoader,
+        ip: InferenceParams,
+        P: Model,
+        epochs: int,
+        K: int,
+        lr: float = 3e-4,
+        decay: float = 1e-4,
+        logging_frequency: int = 1000,
+        simplified: bool = True,
+        errs: Optional[Tensor] = None,
+    ) -> None:
         """Perform the retraining procedure, using intermediate HMC updates to
         generate training paris on-the-fly.
 
@@ -892,13 +934,17 @@ class SAN(Model):
         t.random.seed()
 
         opt = t.optim.Adam(self.parameters(), lr=lr, weight_decay=decay)
-        bounds = t.tensor(cfg.ForwardModelParams().free_param_lims(normalised=True),
-                          device=self.device, dtype=self.dtype)
+        bounds = t.tensor(
+            cfg.ForwardModelParams().free_param_lims(normalised=True),
+            device=self.device,
+            dtype=self.dtype,
+        )
 
         def get_logpdf(xs: Tensor) -> Callable[[Tensor], Tensor]:
             def logpdf(theta: Tensor) -> Tensor:
                 _ = P(theta, True)
                 return P.likelihood.log_prob(xs, P.last_params).sum(-1)
+
             return logpdf
 
         start_e = self.attempt_checkpoint_recovery(ip)
@@ -914,16 +960,21 @@ class SAN(Model):
 
                 xs = xs.unsqueeze(-2).expand(-1, ip.hmc_update_C, ip.hmc_update_D)
 
-
                 logpdf = get_logpdf(xs)
                 initial_pos = self(xs)
 
                 theta_hat = HMC_optimiser(
-                    logpdf, N=ip.hmc_update_N, initial_pos=initial_pos,
-                    rho=ip.hmc_update_rho, L=ip.hmc_update_L,
+                    logpdf,
+                    N=ip.hmc_update_N,
+                    initial_pos=initial_pos,
+                    rho=ip.hmc_update_rho,
+                    L=ip.hmc_update_L,
                     alpha=ip.hmc_update_alpha,
-                    bounds=bounds, device=self.device, dtype=self.dtype,
-                    quiet=True)
+                    bounds=bounds,
+                    device=self.device,
+                    dtype=self.dtype,
+                    quiet=True,
+                )
                 xs = None  # no longer needed on GPU memory
 
                 _ = self.forward(x, True, rsample=False)
@@ -936,9 +987,13 @@ class SAN(Model):
                 opt.step()
 
                 if i % logging_frequency == 0:
-                    logging.info((f'Objective at epoch: {e:02d}/{epochs:02d}'
-                                  f' iter: {i:04d}/{len(train_loader):04d} is '
-                                  f'{loss.detach().cpu().item()}'))
+                    logging.info(
+                        (
+                            f"Objective at epoch: {e:02d}/{epochs:02d}"
+                            f" iter: {i:04d}/{len(train_loader):04d} is "
+                            f"{loss.detach().cpu().item()}"
+                        )
+                    )
             self.checkpoint(ip.ident)
 
         self.eval()
@@ -948,16 +1003,20 @@ class SAN(Model):
         errs = t.atleast_2d(errs).to(x.device, x.dtype)
         return t.distributions.Normal(x, errs).sample()
 
-    def _preprocess_sample_input(self, x: tensor_like, n_samples: int = 1000,
-                                 errs: Optional[tensor_like] = None) -> Tensor:
+    def _preprocess_sample_input(
+        self, x: tensor_like, n_samples: int = 1000, errs: Optional[tensor_like] = None
+    ) -> Tensor:
 
         if isinstance(x, np.ndarray):
             x = t.from_numpy(x)
 
         if not isinstance(x, t.Tensor):
-            raise ValueError((
-                f'Please provide a PyTorch Tensor (or numpy array) as input '
-                f'(got {type(x)})'))
+            raise ValueError(
+                (
+                    f"Please provide a PyTorch Tensor (or numpy array) as input "
+                    f"(got {type(x)})"
+                )
+            )
 
         x = x.unsqueeze(0) if x.dim() == 1 else x
         # TODO remove this
@@ -977,9 +1036,13 @@ class SAN(Model):
         return x
 
     @typing.no_type_check
-    def sample(self, x_in: tensor_like, n_samples: int = 1000,
-               rsample: bool = False, errs: Optional[tensor_like] = None
-               ) -> Tensor:
+    def sample(
+        self,
+        x_in: tensor_like,
+        n_samples: int = 1000,
+        rsample: bool = False,
+        errs: Optional[tensor_like] = None,
+    ) -> Tensor:
         """A convenience method for drawing (conditional) samples from p(y | x)
         for a single conditioning point.
 
@@ -995,9 +1058,13 @@ class SAN(Model):
         x = self._preprocess_sample_input(x_in, n_samples, errs)
         return self(x, rsample)
 
-    def mode(self, x_in: tensor_like, n_samples: int = 1000,
-             rsample: bool = False, errs: Optional[tensor_like] = None
-             ) -> Tensor:
+    def mode(
+        self,
+        x_in: tensor_like,
+        n_samples: int = 1000,
+        rsample: bool = False,
+        errs: Optional[tensor_like] = None,
+    ) -> Tensor:
         """A convenience method which returns the highest posterior mode for a
         given batch of photometric observations, x_in
 
@@ -1018,7 +1085,7 @@ class SAN(Model):
         rsamples = samples.reshape(B, n_samples, self.data_dim)  # [B, N, data_dim]
 
         assert self.last_params is not None
-        lps = self.likelihood.log_prob(samples, self.last_params).sum(-1)  #[B*N]
+        lps = self.likelihood.log_prob(samples, self.last_params).sum(-1)  # [B*N]
         self.last_params = None  # remove references to GPU memory
         rlps = lps.reshape(B, N)  # [B, N]
 
@@ -1032,6 +1099,7 @@ class SAN(Model):
 class PModel(SAN):
     """A SAN which is slightly adapted to act as a likelihood / forward model
     emulator by switching the xs and thetas in the preprocessing step."""
+
     def preprocess(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
         return y.to(self.device, self.dtype), x.to(self.device, self.dtype)
 
@@ -1040,9 +1108,7 @@ class PModel(SAN):
 
 
 class SANv2(SAN):
-
-    def __init__(self, mp: SANv2Params,
-                 logging_callbacks: list[Callable] = []):
+    def __init__(self, mp: SANv2Params, logging_callbacks: list[Callable] = []):
         """Sequential autoregressive network with shared latent variables
         output by an initial 'encoder' block. Marginals of the target
         distribution are then sequentially generated in an autoregressive
@@ -1057,35 +1123,39 @@ class SANv2(SAN):
 
         self._do_init(mp)
 
-        if mp.device == t.device('cuda'):
+        if mp.device == t.device("cuda"):
             self.to(mp.device, mp.dtype)
             self.likelihood.to(mp.device, mp.dtype)
         else:
-            self.likelihood.to(t.device('cpu'), mp.dtype)
+            self.likelihood.to(t.device("cpu"), mp.dtype)
 
-    name: str = 'SANv2'
+    name: str = "SANv2"
 
     def __repr__(self) -> str:
-        return (f'{self.name} with {self.likelihood.name} likelihood, '
-                f'encoder of shape {self.encoder_layers} and '
-                f'{self.latent_features} latent features, '
-                f'module blocks of shape {self.module_shape} '
-                f'and {self.sequence_features} features between blocks trained '
-                f'for {self.epochs} epochs with batches of size {self.batch_size}')
+        return (
+            f"{self.name} with {self.likelihood.name} likelihood, "
+            f"encoder of shape {self.encoder_layers} and "
+            f"{self.latent_features} latent features, "
+            f"module blocks of shape {self.module_shape} "
+            f"and {self.sequence_features} features between blocks trained "
+            f"for {self.epochs} epochs with batches of size {self.batch_size}"
+        )
 
-    def fpath(self, ident: str='') -> str:
+    def fpath(self, ident: str = "") -> str:
         """Returns a file path to save the model to, based on its parameters."""
-        base = './results/sanv2models/'
+        base = "./results/sanv2models/"
         s = self.module_shape + [self.sequence_features]
-        ms = '_'.join([str(l) for l in s])
-        name = (f'l{self.likelihood.name}_cd{self.cond_dim}_'
-                f'ed{self.latent_features}_'
-                f'dd{self.data_dim}_ms{ms}_'
-                f'lp{self.likelihood.n_params()}_ln{self.layer_norm}_'
-                f'lr{self.lr}_ld{self.decay}_e{self.epochs}_'
-                f'bs{self.batch_size}_trsample{self.train_rsample}_')
-        name += 'lim_' if self.limits is not None else ''
-        self.savepath_cached = f'{base}{name}{ident}.pt'
+        ms = "_".join([str(l) for l in s])
+        name = (
+            f"l{self.likelihood.name}_cd{self.cond_dim}_"
+            f"ed{self.latent_features}_"
+            f"dd{self.data_dim}_ms{ms}_"
+            f"lp{self.likelihood.n_params()}_ln{self.layer_norm}_"
+            f"lr{self.lr}_ld{self.decay}_e{self.epochs}_"
+            f"bs{self.batch_size}_trsample{self.train_rsample}_"
+        )
+        name += "lim_" if self.limits is not None else ""
+        self.savepath_cached = f"{base}{name}{ident}.pt"
 
         return self.savepath_cached
 
@@ -1109,10 +1179,10 @@ class SANv2(SAN):
         self.encoder = nn.Sequential()
         hs = [self.cond_dim] + self.encoder_layers + [self.latent_features]
         for i, (j, k) in enumerate(zip(hs[:-1], hs[1:])):
-            self.encoder.add_module(name=f'E{i}', module=nn.Linear(j, k))
+            self.encoder.add_module(name=f"E{i}", module=nn.Linear(j, k))
             if self.layer_norm:
-                self.encoder.add_module(name=f'E_LN{i}', module=nn.LayerNorm(k))
-            self.encoder.add_module(name=f'E_A{i}', module=nn.ReLU())
+                self.encoder.add_module(name=f"E_LN{i}", module=nn.LayerNorm(k))
+            self.encoder.add_module(name=f"E_A{i}", module=nn.ReLU())
         self.encoder.to(self.device, self.dtype)
 
         # initialise the sequential blocks:
@@ -1121,15 +1191,17 @@ class SANv2(SAN):
         self.sequential_block_heads = nn.ModuleList()
 
         for (i, d) in enumerate(range(self.data_dim)):
-            b, h = self._sequential_block(self.latent_features, d,
-                    self.module_shape,
-                    out_shapes=[self.sequence_features, self.likelihood.n_params()],
-                    out_activations=[nn.ReLU, None])
+            b, h = self._sequential_block(
+                self.latent_features,
+                d,
+                self.module_shape,
+                out_shapes=[self.sequence_features, self.likelihood.n_params()],
+                out_activations=[nn.ReLU, None],
+            )
             self.sequential_blocks.append(b)
             self.sequential_block_heads.append(h)
 
-        self.opt = t.optim.Adam(self.parameters(), lr=self.lr,
-                                weight_decay=self.decay)
+        self.opt = t.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.decay)
 
         # We need to initialise an encoder block (taking input_features to latent_features)
         #
@@ -1142,8 +1214,7 @@ class SANv2(SAN):
         self.lr = mp.opt_lr
         self.decay = mp.opt_decay
 
-    def forward(self, x: Tensor, lp: bool = False,
-                rsample: bool = False) -> Tensor:
+    def forward(self, x: Tensor, lp: bool = False, rsample: bool = False) -> Tensor:
         """Forward pass through the model.
 
         Args:
@@ -1167,8 +1238,11 @@ class SANv2(SAN):
         ys = t.empty(B + (0,), dtype=self.dtype, device=self.device)
 
         if lp:
-            self.last_params = t.empty(B + (0, self.likelihood.n_params()),
-                                       dtype=self.dtype, device=self.device)
+            self.last_params = t.empty(
+                B + (0, self.likelihood.n_params()),
+                dtype=self.dtype,
+                device=self.device,
+            )
         else:
             # invalidate any previously saved parameters to avoid confusion
             self.last_params = None
@@ -1194,11 +1268,13 @@ class SANv2(SAN):
                 y_d = self.likelihood.sample(params, d)
             assert not y_d.isnan().all(), "NaN values returned from likelihood."
 
-            y_d = y_d[(..., ) + (None, ) * (ys.dim() - y_d.dim())]
+            y_d = y_d[(...,) + (None,) * (ys.dim() - y_d.dim())]
 
             ys = t.cat((ys, y_d), -1)
             if lp:
-                self.last_params = t.cat((self.last_params, params.unsqueeze(-2)), x.dim()-1)
+                self.last_params = t.cat(
+                    (self.last_params, params.unsqueeze(-2)), x.dim() - 1
+                )
 
         # check we did the sampling right
         assert ys.shape == B + (self.data_dim,)
@@ -1208,16 +1284,17 @@ class SANv2(SAN):
 class PModelv2(SANv2):
     """A SANv2 which is slightly adapted to act as a likelihood / forward model
     emulator by switching the xs and thetas in the preprocessing step."""
+
     def preprocess(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
         return y.to(self.device, self.dtype), x.to(self.device, self.dtype)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     from spt import config as cfg
     from spt.load_photometry import load_simulated_data, get_norm_theta
 
-    logging.info(f'Beginning SAN training')
+    logging.info(f"Beginning SAN training")
     sp = cfg.SANParams()
     s = SAN(sp)
     logging.info(s)
@@ -1235,4 +1312,4 @@ if __name__ == '__main__':
 
     s.offline_train(train_loader, ip)
 
-    logging.info(f'Exiting')
+    logging.info(f"Exiting")

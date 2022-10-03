@@ -20,8 +20,8 @@ ray==1.13.0
 rich==11.1.0
 schwimmbad==0.3.2
 semver==2.13.0
-torch
-torchvision
+torch==1.12.1+cu113
+torchvision==0.13.1+cu113
 tqdm==4.63.0
 
 git+https://github.com/bd-j/sedpy
