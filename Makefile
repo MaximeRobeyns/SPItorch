@@ -16,26 +16,6 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 
 SHELL := bash
-# .ONESHELL:
-# .SHELLFLAGS := -eu -o pipefail -c
-# .DELETE_ON_ERROR:
-# MAKEFLAGS += --warn-undefined-variables
-# MAKEFLAGS += --no-builtin-rules
-# MAKEFLAGS += -j8
-
-# Ensure Python >= 3.9 is present ---------------------------------------------
-
-# Specify the path to your Python>=3.9 executable here.
-PYTHON = $(shell which python3.9)
-
-PYTHON_VERSION_MIN=3.9
-PYTHON_VERSION=$(shell $(PYTHON) -c 'import sys; print("%d.%d"% sys.version_info[0:2])' )
-PYTHON_VERSION_OK=$(shell $(PYTHON) -c 'import sys;\
-  print(int(float("%d.%d"% sys.version_info[0:2]) >= $(PYTHON_VERSION_MIN)))' )
-
-ifeq ($(PYTHON_VERSION_OK),0)
-  $(error "Need python $(PYTHON_VERSION) >= $(PYTHON_VERSION_MIN)")
-endif
 
 # Targets ---------------------------------------------------------------------
 
