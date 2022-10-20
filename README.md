@@ -12,12 +12,21 @@ The [installation guide](https://maximerobeyns.github.io/SPItorch/installation.h
 contains detailed information on how to install the project, but for users
 looking to get started quickly, the following steps should be sufficient.
 
-To install, run
+To install, run (ideally in a virtual environment)
 ``` bash
 git clone https://github.com/MaximeRobeyns/spitorch
 cd SPItorch
 make install
 ```
+
+Then make sure that you export the following environment variable:
+```bash
+export SPS_HOME=`pwd`/deps/fsps
+```
+It is a good idea to either put this in your shell configuration or use
+something like (direnv)[https://direnv.net/] to do this automatically for you.
+
+## Tutorials
 
 If you want to run the tutorial notebooks, you will need the tutorial datasets.
 These are hosted on GitHub using [Git Large Object
@@ -32,9 +41,10 @@ curl -LO https://github.com/git-lfs/git-lfs/releases/download/v3.1.4/git-lfs-lin
 tar -xzf git-lfs-linux-amd64-v3.1.4.tar.gz
 sudo ./install.sh
 git lfs install
+git lfs fetch --all
 ```
 
-Note that we require **Python 3.9** or later. If you do not have this version,
+Note that we require **Python 3.10** or later. If you do not have this version,
 then using a suitably configured `conda` environment is highly recommended. We
 make no assumptions about your virtual environment or shell configuration,
 however before calling any of the targets in the `Makefile`, please ensure that
