@@ -48,29 +48,14 @@ There are broadly two components:
    read the `Inference </inference.html>`_ page.
 
 Configurations
---------------
+~~~~~~~~~~~~~~
 
-In this project, we take a *configuration-as-code* approach, where the program's
-configuration is in ``spt/config.py``.
-
-The main reasons for doing it this way are that:
-
-- configurations are all located in one place instead of being scattered around
-  the code
-- the program arguments and parameters are maintained in version control, as an
-  example for new users and a reference for old users
-- there are no long command line arguments to type by hand, and configurations
-  don't litter submission scripts and ``Makefiles``.
-- you can evaluate arbitrary code to set configuration values. (In general
-  this is a security risk, but not for this application.)
-
-This is by no means perfect, and many folks prefer to do things differently. If
-this is the case, you are welcome to modify your ``config.py`` to, for instance,
-call ``argparse`` and accept command line arguments.
+Configurations for the project are set in ``spt/config.py``, not through command
+line arguments.
 
 
 Miscellaneous
--------------
+~~~~~~~~~~~~~
 
 We use `type hints <https://www.python.org/dev/peps/pep-0484/>`_ throughout the
 code to allow for static type checking using `mypy <http://mypy-lang.org/>`_. In

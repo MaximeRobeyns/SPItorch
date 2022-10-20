@@ -32,7 +32,7 @@ mdset:  ## To create an offline dataset, using mpi
 mypy: ## To run mypy only (this is usually done with test / alltest)
 	@mypy
 
-test: mypy  ## To run the program's fast tests (e.g. to verify an installation)
+test: ## To run the program's fast tests (e.g. to verify an installation)
 	@python -m pytest -s tests
 
 alltest: mypy ## To run all the program's tests (including slow running ones)
