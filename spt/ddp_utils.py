@@ -4,7 +4,7 @@ import logging
 import torch as t
 import torch.distributed as dist
 
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar
 from omegaconf import DictConfig
 from multiprocessing.connection import Listener, Client, Connection
 

@@ -164,6 +164,7 @@ def _style_plot(
     ax.set_xscale("log")
     ax.set_yscale("log")
     plt.legend(loc="best", fontsize=15)
+
     fig.patch.set_facecolor("white")
 
     fig.tight_layout()
@@ -317,9 +318,7 @@ def visualise_model(
         c = ccolours[i % len(ccolours)]
         label = "" if l == "" else f" ({l})"
 
-        ax.loglog(
-            wspec, spec, label=f"Model spectrum{label}", lw=0.7, color=c, alpha=0.7
-        )
+        ax.loglog(wspec, spec, label=f"Model spectrum{label}", lw=1, color=c, alpha=0.7)
         ax.errorbar(
             wphot,
             phot,  # label=f'Model photometry{label}',
@@ -372,6 +371,10 @@ def visualise_model(
     )
     _plot_filters(obs, *ybounds)
     _style_plot(fig, ax, *xbounds, *ybounds)
+
+    # leg = ax.legend()
+    # for line in leg.get_lines():
+    #     line.set_linewidth(2.5)
 
     if save:
         if path is None:
