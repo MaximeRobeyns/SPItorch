@@ -10,7 +10,7 @@
   
 <meta property="og:url" content="installation.html" />
   
-<meta property="og:description" content="Quickstart: To install the project, run: Please note that if you wish to install the library within a virtual environment, you should activate it before running make install above. Then, to make su..." />
+<meta property="og:description" content="Quickstart: To install the project, Clone the project:,( optional but recommended) setup a new virtual environment using your favourite python environment manager e.g. pip or conda. Note that we re..." />
   <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="2. Basic Usage" href="basic_usage.html" /><link rel="prev" title="SPItorch documentation" href="index.html" />
 
     <link rel="shortcut icon" href="_static/favicon-32x32.png"/><meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
@@ -206,18 +206,59 @@
 <span id="installation"></span><h1><span class="section-number">1. </span>Installation Guide<a class="headerlink" href="#installation-guide" title="Permalink to this headline">#</a></h1>
 <section id="quickstart">
 <h2><span class="section-number">1.1. </span>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">#</a></h2>
-<p>To install the project, run:</p>
+<p>To install the project,</p>
+<ol class="arabic">
+<li><p>Clone the project:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">maximerobeyns</span><span class="o">/</span><span class="n">spitorch</span>
 <span class="n">cd</span> <span class="n">spitorch</span>
-<span class="n">make</span> <span class="n">install</span>
 </pre></div>
 </div>
-<p>Please note that if you wish to install the library within a virtual
-environment, you should activate it before running <cite>make install</cite> above.</p>
-<p>Then, to make sure everything works, run:</p>
+</li>
+<li><p>(<strong>optional</strong> but recommended) setup a new virtual environment using your
+favourite python environment manager e.g. pip or conda. Note that we require
+<code class="docutils literal notranslate"><span class="pre">python&gt;=3.10</span></code>, which can easily be installed with conda with:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">create</span> <span class="o">-</span><span class="n">n</span> <span class="n">spitorch</span> <span class="n">python</span><span class="o">=</span><span class="mf">3.10</span>
+<span class="n">conda</span> <span class="n">activate</span> <span class="n">spitorch</span>
+</pre></div>
+</div>
+</li>
+<li><p>With the virtual environment activated, run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span> <span class="n">install</span>
+</pre></div>
+</div>
+<p>Note that you need to have the <code class="docutils literal notranslate"><span class="pre">SPS_HOME</span></code> environment variable set in your
+shell whenever you run the program (import the <code class="docutils literal notranslate"><span class="pre">spt</span></code> module). To do this,
+you can either run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>export SPS_HOME=`pwd`/deps/fsps
+</pre></div>
+</div>
+<p>or you can use something like <a class="reference external" href="https://direnv.net/">direnv</a> to export this
+automatically.</p>
+</li>
+<li><p>(<strong>optional</strong>) to run the examples, you’ll need the example dataset. This is
+hosted using <a class="reference external" href="https://git-lfs.github.com/">git large file storage</a>.</p>
+<p>Download the appropriate release from <a class="reference external" href="https://github.com/git-lfs/git-lfs/releases/latest">the latest releases</a>, and install it. For
+example on x86 linux you could do:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="o">-</span><span class="n">LO</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">git</span><span class="o">-</span><span class="n">lfs</span><span class="o">/</span><span class="n">git</span><span class="o">-</span><span class="n">lfs</span><span class="o">/</span><span class="n">releases</span><span class="o">/</span><span class="n">download</span><span class="o">/</span><span class="n">v3</span><span class="mf">.2.0</span><span class="o">/</span><span class="n">git</span><span class="o">-</span><span class="n">lfs</span><span class="o">-</span><span class="n">linux</span><span class="o">-</span><span class="n">amd64</span><span class="o">-</span><span class="n">v3</span><span class="mf">.2.0</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">gz</span>
+<span class="n">tar</span> <span class="o">-</span><span class="n">xvzf</span> <span class="n">git</span><span class="o">-</span><span class="n">lfs</span><span class="o">-</span><span class="n">linux</span><span class="o">-</span><span class="n">amd64</span><span class="o">-</span><span class="n">v3</span><span class="mf">.2.0</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">gz</span>
+<span class="n">cd</span> <span class="n">git</span><span class="o">-</span><span class="n">lfs</span><span class="o">-</span><span class="mf">3.2.0</span>
+<span class="n">PREFIX</span><span class="o">=&lt;/</span><span class="n">optional</span><span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">prefix</span><span class="o">&gt;</span> <span class="o">./</span><span class="n">install</span><span class="o">.</span><span class="n">sh</span>
+</pre></div>
+</div>
+<p>Then run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">lfs</span> <span class="n">install</span>  <span class="c1"># install hooks</span>
+<span class="n">git</span> <span class="n">lfs</span> <span class="n">fetch</span> <span class="o">--</span><span class="nb">all</span>
+</pre></div>
+</div>
+<p>Then verify that you have the file <code class="docutils literal notranslate"><span class="pre">data/catalogues/DES_VIDEO_v1.0.1.fits</span></code>
+locally.</p>
+</li>
+<li><p>(<strong>optional</strong>) To make sure everything works, run:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span> <span class="n">test</span>
 </pre></div>
 </div>
+</li>
+</ol>
 <p>If everything worked well, you can now take a look at the <a class="reference external" href="/basic_usage.html">basic usage guide</a>.</p>
 <p>If something went wrong, consult the <a class="reference internal" href="#troubleshooting">Troubleshooting</a> section below for common
 issues. If things went <em>very</em> wrong or you’re installing on an unconventional
@@ -226,50 +267,48 @@ setup, see the <a class="reference internal" href="#manual-installation">Manual 
 <h3><span class="section-number">1.1.1. </span>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this headline">#</a></h3>
 <p>Some common issues</p>
 <ol class="arabic">
-<li><p><strong>Python 3.9</strong></p>
-<p>The project needs Python 3.9 or later to run.</p>
+<li><p><strong>Fortran Compiler</strong></p>
+<p>In order to compile <a class="reference external" href="https://github.com/cconroy20/fsps/blob/master/doc/INSTALL">fsps</a>, you’ll need a
+working fortran compiler: the one that comes in the GNU compiler collection
+(<code class="docutils literal notranslate"><span class="pre">gcc</span></code>) usually works, just make sure that <code class="docutils literal notranslate"><span class="pre">gcc</span></code> is up to date.</p>
+</li>
+<li><p><strong>Package Conflicts</strong></p>
+<blockquote>
+<div><p>Sometimes there are issues with python packages which are already installed
+on your system. This is mostly mitigated when using a virtual environment,
+but one easy way to rule out this problem is to run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">FORCE_REINSTALL</span><span class="o">=</span><span class="n">true</span> <span class="n">make</span> <span class="n">install</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+<li><p><strong>Python 3.10</strong></p>
+<p>The project needs Python 3.10 or later to run.</p>
 <p>You can check your currently installed version by running:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">--</span><span class="n">version</span>
 </pre></div>
 </div>
-<p>Follow the instructions in the <a class="reference internal" href="#building-python-3-9">Building Python 3.9</a> section for help if
+<p>Follow the instructions in the <a class="reference internal" href="#building-python-3-10">Building Python 3.10</a> section for help if
 you have an older version.</p>
 </li>
+<li><p><strong>Specific Python Path</strong></p></li>
 </ol>
-<p>2 <strong>Specific Python Path</strong></p>
 <blockquote>
 <div><p>If the standard python executable (i.e. the result of running <code class="docutils literal notranslate"><span class="pre">which</span>
-<span class="pre">python</span></code>) is different from the Python &gt;= 3.9 executable that you want to
+<span class="pre">python</span></code>) is different from the Python &gt;= 3.10 executable that you want to
 use, then update the <code class="docutils literal notranslate"><span class="pre">PYTHON</span></code> variable in the <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> to point to
 your desired python path, before running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">install</span></code>:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Makefile, around line 28</span>
-<span class="n">PYTHON</span> <span class="o">=</span> <span class="o">/</span><span class="n">absolute</span><span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">your</span><span class="o">/</span><span class="n">python3</span><span class="mf">.9</span>
+<span class="n">PYTHON</span> <span class="o">=</span> <span class="o">/</span><span class="n">absolute</span><span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">your</span><span class="o">/</span><span class="n">python3</span><span class="mf">.10</span>
 </pre></div>
 </div>
 </div></blockquote>
 </section>
 <section id="optional-steps">
 <h3><span class="section-number">1.1.2. </span>Optional Steps<a class="headerlink" href="#optional-steps" title="Permalink to this headline">#</a></h3>
-<section id="shell-setup">
-<h4><span class="section-number">1.1.2.1. </span>Shell Setup<a class="headerlink" href="#shell-setup" title="Permalink to this headline">#</a></h4>
-<p>Every time you run the project, or want to develop using linters and type
-checkers, you should activate the virtual environment and set some necessary
-environment variables (such as <code class="docutils literal notranslate"><span class="pre">SPS_HOME</span></code>).</p>
-<p>This will be done automatically for you when running targets through the
-<code class="docutils literal notranslate"><span class="pre">Makefile</span></code>, but if you’re running things directly, then you can easily
-setup your shell by running:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">source</span> <span class="n">setup</span><span class="o">.</span><span class="n">sh</span>
-</pre></div>
-</div>
-<p>To deactivate the virtual environment, either exit your terminal, or type
-<code class="docutils literal notranslate"><span class="pre">deactivate</span></code>.</p>
-</section>
-<section id="full-tests">
-<h4><span class="section-number">1.1.2.2. </span>Full tests<a class="headerlink" href="#full-tests" title="Permalink to this headline">#</a></h4>
 <p>Running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">test</span></code> after installation only runs a subset of the tests which
 don’t take too long to run. If you want to run the slow running tests too, then
 you can do this with <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">alltest</span></code>.</p>
-</section>
 </section>
 </section>
 <section id="manual-installation">
@@ -298,7 +337,7 @@ install it in the <code class="docutils literal notranslate"><span class="pre">.
 </pre></div>
 </div>
 <p>We now create virtual environment called <code class="docutils literal notranslate"><span class="pre">spitorch</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python3</span><span class="mf">.9</span> <span class="o">-</span><span class="n">m</span> <span class="n">venv</span> <span class="n">spitorch</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python3</span><span class="mf">.10</span> <span class="o">-</span><span class="n">m</span> <span class="n">venv</span> <span class="n">spitorch</span>
 </pre></div>
 </div>
 <p>If you prefer to use conda, or install the dependencies somewhere else (for
@@ -319,20 +358,26 @@ this filter directory, drop into a python shell (with the venv activated), and
 run:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">sedpy</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">sedpy</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span>
-<span class="go">/path/to/spitorch/spitorch/lib/python3.9/site-packages/sedpy/__init__.py</span>
+<span class="go">/path/to/spitorch/spitorch/lib/python3.10/site-packages/sedpy/__init__.py</span>
 </pre></div>
 </div>
 <p>This points us to sedpy’s installation directory; we want to copy the filters in
 <code class="docutils literal notranslate"><span class="pre">./filters</span></code> to the <code class="docutils literal notranslate"><span class="pre">&lt;sedpy-base&gt;/data/filters/</span></code> directory. That is:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cp</span> <span class="o">-</span><span class="n">n</span> <span class="o">./</span><span class="n">filters</span><span class="o">/*</span> \
-    <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">spitorch</span><span class="o">/</span><span class="n">spitorch</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">python3</span><span class="mf">.9</span><span class="o">/</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="o">/</span><span class="n">sedpy</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">filters</span><span class="o">/</span>
+    <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">spitorch</span><span class="o">/</span><span class="n">spitorch</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">python3</span><span class="mf">.10</span><span class="o">/</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="o">/</span><span class="n">sedpy</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">filters</span><span class="o">/</span>
 </pre></div>
 </div>
 <p>Now we can install <code class="docutils literal notranslate"><span class="pre">spitorch</span></code> itself, by running the following from the root
 of the repository:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="o">.</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">r</span> <span class="n">requirements</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">extra</span><span class="o">-</span><span class="n">index</span><span class="o">-</span><span class="n">url</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">download</span><span class="o">.</span><span class="n">pytorch</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">whl</span><span class="o">/</span><span class="n">cu113</span>
+<span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="o">.</span><span class="p">[</span><span class="nb">all</span><span class="p">]</span> <span class="o">--</span><span class="n">extra</span><span class="o">-</span><span class="n">index</span><span class="o">-</span><span class="n">url</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">download</span><span class="o">.</span><span class="n">pytorch</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">whl</span><span class="o">/</span><span class="n">cu113</span>
 </pre></div>
 </div>
+<p>If there are issues with the above, you can also add in the following flags:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">reinstall</span> <span class="o">--</span><span class="n">ignore</span><span class="o">-</span><span class="n">installed</span> <span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">binary</span> <span class="p">:</span><span class="nb">all</span><span class="p">:</span>
+</pre></div>
+</div>
+<p>at the end of the <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">...</span></code> line.</p>
 </section>
 <section id="writing-documentation">
 <h2><span class="section-number">1.3. </span>Writing Documentation<a class="headerlink" href="#writing-documentation" title="Permalink to this headline">#</a></h2>
@@ -349,21 +394,21 @@ of the repository:</p>
 both the documentation source files (in <code class="docutils literal notranslate"><span class="pre">/docs/</span></code>) as well as the source files
 in <code class="docutils literal notranslate"><span class="pre">/spt</span></code> for changes.</p>
 </section>
-<section id="building-python-3-9">
-<h2><span class="section-number">1.4. </span>Building Python 3.9<a class="headerlink" href="#building-python-3-9" title="Permalink to this headline">#</a></h2>
-<p>This is an optional step if you do not have Python 3.9 available on the system
+<section id="building-python-3-10">
+<h2><span class="section-number">1.4. </span>Building Python 3.10<a class="headerlink" href="#building-python-3-10" title="Permalink to this headline">#</a></h2>
+<p>This is an optional step if you do not have Python 3.10 available on the system
 you intend to run <code class="docutils literal notranslate"><span class="pre">spitorch</span></code> on. Here we will assume that you do not have
 root privileges.</p>
-<p>First, download a Python&gt;=3.9 source code release in some convenient directory.
+<p>First, download a Python&gt;=3.10 source code release in some convenient directory.
 You could choose to work in <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>, or any other directory (ideally on your
 target machine / architecture). At the time of writing, the latest release can
 be downloaded with:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">wget</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">www</span><span class="o">.</span><span class="n">python</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">ftp</span><span class="o">/</span><span class="n">python</span><span class="o">/</span><span class="mf">3.9.6</span><span class="o">/</span><span class="n">Python</span><span class="o">-</span><span class="mf">3.9.6</span><span class="o">.</span><span class="n">tgz</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">wget</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">www</span><span class="o">.</span><span class="n">python</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">ftp</span><span class="o">/</span><span class="n">python</span><span class="o">/</span><span class="mf">3.10.7</span><span class="o">/</span><span class="n">Python</span><span class="o">-</span><span class="mf">3.10.7</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">xz</span>
 </pre></div>
 </div>
 <p>Extract this and go into the source directory:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">tar</span> <span class="n">xzf</span> <span class="n">Python</span><span class="o">-</span><span class="mf">3.9.6</span><span class="o">.</span><span class="n">tgz</span>
-<span class="n">cd</span> <span class="n">Python</span><span class="o">-</span><span class="mf">3.9.6</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">tar</span> <span class="o">-</span><span class="n">xf</span> <span class="n">Python</span><span class="o">-</span><span class="mf">3.10.7</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">xz</span>
+<span class="n">cd</span> <span class="n">Python</span><span class="o">-</span><span class="mf">3.10.7</span>
 </pre></div>
 </div>
 <p>We now follow a fairly standard <code class="docutils literal notranslate"><span class="pre">./configure</span> <span class="pre">&amp;&amp;</span> <span class="pre">make</span> <span class="pre">&amp;&amp;</span> <span class="pre">make</span> <span class="pre">install</span></code> build
@@ -386,7 +431,7 @@ concurrently. If compiling on a login node, remember be mindful of other users!<
 </section>
 <section id="anaconda">
 <h2><span class="section-number">1.5. </span>Anaconda<a class="headerlink" href="#anaconda" title="Permalink to this headline">#</a></h2>
-<p>Perhaps an easier way to install Python 3.9 on a machine that does not have it
+<p>Perhaps an easier way to install Python 3.10 on a machine that does not have it
 is to use a package manager like <a class="reference external" href="https://www.anaconda.com/">Anaconda</a> with
 packages written to your home directory.</p>
 <p>If you do not have root access, set up a <code class="docutils literal notranslate"><span class="pre">.condarc</span></code> file to set the prefix to
@@ -397,8 +442,8 @@ your conda environments to a folder in your home directory:</p>
   <span class="o">-</span>  <span class="o">~/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">conda_envs</span>
 </pre></div>
 </div>
-<p>You can now create a virtual environment with Python 3.9:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">create</span> <span class="n">spitorch_env</span> <span class="n">Python</span><span class="o">=</span><span class="mf">3.9</span>
+<p>You can now create a virtual environment with Python 3.10:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">create</span> <span class="n">spitorch_env</span> <span class="n">Python</span><span class="o">=</span><span class="mf">3.10</span>
 </pre></div>
 </div>
 <p>You can then activate the environment with:</p>
@@ -467,16 +512,12 @@ your conda environments to a folder in your home directory:</p>
 <li><a class="reference internal" href="#">1. Installation Guide</a><ul>
 <li><a class="reference internal" href="#quickstart">1.1. Quickstart</a><ul>
 <li><a class="reference internal" href="#troubleshooting">1.1.1. Troubleshooting</a></li>
-<li><a class="reference internal" href="#optional-steps">1.1.2. Optional Steps</a><ul>
-<li><a class="reference internal" href="#shell-setup">1.1.2.1. Shell Setup</a></li>
-<li><a class="reference internal" href="#full-tests">1.1.2.2. Full tests</a></li>
-</ul>
-</li>
+<li><a class="reference internal" href="#optional-steps">1.1.2. Optional Steps</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#manual-installation">1.2. Manual Installation</a></li>
 <li><a class="reference internal" href="#writing-documentation">1.3. Writing Documentation</a></li>
-<li><a class="reference internal" href="#building-python-3-9">1.4. Building Python 3.9</a></li>
+<li><a class="reference internal" href="#building-python-3-10">1.4. Building Python 3.10</a></li>
 <li><a class="reference internal" href="#anaconda">1.5. Anaconda</a></li>
 </ul>
 </li>
