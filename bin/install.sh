@@ -21,7 +21,12 @@ fi
 # These flags will fix any issues arising from compiling package wheels using a
 # (major) python version that differs from the current python version in your
 # path.
-HAMMER="--force-reinstall --ignore-installed --no-binary :all:"
+if [ -z $FORCE_REINSTALL ]; then
+    FLAGS = ""
+else
+    FLAGS="--force-reinstall --ignore-installed --no-binary :all:"
+fi
 
-pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu113 #  $HAMMER
+
+SPS_HOME=`pwd`/deps/fsps pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu113 $FLAGS
 pip install -e .[all] --extra-index-url https://download.pytorch.org/whl/cu113
