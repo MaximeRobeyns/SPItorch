@@ -15,7 +15,6 @@
 # or for SLURM runs:
 # sbatch job.sh path/to/file.py +hydra=arg
 
-
 # For 80G A100s:
 # #SBATCH --nodes 2
 # SBATCH --nodelist bp1-gpu[038,039]
@@ -34,7 +33,7 @@ export NCCL_BLOCKING_WAIT=1
 if [[ $(hostname) == bp1-* ]]; then
     module load lang/python/anaconda/3.9.7-2021.12-tensorflow.2.7.0
     eval "$(conda shell.bash hook)"
-    conda activate /user/work/$(whoami)/spivenv
+    conda activate /user/work/`whoami`/spivenv
 fi
 
 # 3. Get the master node address
@@ -49,6 +48,14 @@ export MASTER_PORT=${PORTS[0]:-$((32768+RANDOM%28231))}
 export COMM_PORT=${PORTS[1]:-$((32768+RANDOM%28231))}
 
 echo Using ${MASTER_ADDR}:${MASTER_PORT} as master.
+
+# Interrupt script gracefully.
+function cleanup {
+    echo Stopping distributed script...
+    kill $(ps aux | grep '[p]ython ./run.py' | awk '{print $2}')
+    echo Script aborted.
+}
+trap cleanup SIGINT
 
 # 4. Use slurm_launcher to launch SLURM job, or local launcher otherwise
 if [[ -z $SLURM_JOB_ID || $SLURM_JOB_NUM_NODES == 1 ]]; then

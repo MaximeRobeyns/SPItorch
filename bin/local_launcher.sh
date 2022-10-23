@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo starting local launcher
+
 # A launcher for single-node runs.
 
 # Get number of workers as:
@@ -9,7 +11,7 @@
 WORKERS=${SLURM_GPUS_ON_NODE:-$(timeout 5 nvidia-smi -L | wc -l)}
 if [ $WORKERS == 0 ]; then WORKERS=1; fi
 
-WORKERS=5
+echo Using $WORKERS workers on `hostname`
 
 # export MASTER_ADDR=127.0.0.1
 

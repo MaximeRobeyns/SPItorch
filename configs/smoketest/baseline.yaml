@@ -3,7 +3,7 @@
 run:
   _target_: spt.RunConfig
   id: baseline
-  task: smoketest
+  task: smoke_test
   description: |-
     Tests whether the application runs correctly.
   for_version: 1.2.0
