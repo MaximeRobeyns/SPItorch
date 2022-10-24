@@ -40,12 +40,19 @@ pdict_t = dict[str, Union[float, bool, str, Prior]]
 
 
 class Parameter:
-
-    def __init__(self, name: str, range_min: float, init: float,
-                 range_max: float, prior: Type[Prior] = Uniform,
-                 prior_kwargs: dict[str, Any] = {},
-                 model_this: bool = True, units: str = '',
-                 dim: int = 1, disp_floor: Optional[float] = None):
+    def __init__(
+        self,
+        name: str,
+        range_min: float,
+        init: float,
+        range_max: float,
+        prior: Type[Prior] = Uniform,
+        prior_kwargs: dict[str, Any] = {},
+        model_this: bool = True,
+        units: str = "",
+        dim: int = 1,
+        disp_floor: Optional[float] = None,
+    ):
         """Describes a Prospector parameter.
 
         This should be defined for direct use in the forward model (no
@@ -85,7 +92,6 @@ class Parameter:
         self._range_min = range_min
         self._range_max = range_max
 
-
         # This is poor form since not all priors accept mini and maxi; however
         # the prospect.models.priors don't check for redundant kwargs...
         #
@@ -95,24 +101,24 @@ class Parameter:
 
     def to_dict(self) -> dict[str, pdict_t]:
         values = {
-            'units': self.units,
-            'init': self.init,
-            'prior': self.prior,
-            'isfree': self.isfree,
-            'N': self.N,
-            '_range_min': self._range_min,
-            '_range_max': self._range_max,
+            "units": self.units,
+            "init": self.init,
+            "prior": self.prior,
+            "isfree": self.isfree,
+            "N": self.N,
+            "_range_min": self._range_min,
+            "_range_max": self._range_max,
         }
         if self.disp_floor is not None:
-            values['disp_floor']  = self.disp_floor
+            values["disp_floor"] = self.disp_floor
         return {self.name: values}
 
     def __repr__(self) -> str:
-        pn = str(self.prior.__class__).split('.')[-1].split("'")[0]
+        pn = str(self.prior.__class__).split(".")[-1].split("'")[0]
         if self.isfree:
-            return f'\n\tFixed {self.name} ({self.units}) at {self.init}'
+            return f"\n\tFixed {self.name} ({self.units}) at {self.init}"
         else:
-            return f'\n\tLearned {self.name} ({self.units}) with {pn} prior'
+            return f"\n\tLearned {self.name} ({self.units}) with {pn} prior"
 
 
 class ParamConfig:
@@ -145,7 +151,7 @@ class ParamConfig:
         # Begin by applying the templates...
         for t in self.model_param_templates:
             if t not in TemplateLibrary._entries.keys():
-                logging.warning(f'Template library {t} is not recognized.')
+                logging.warning(f"Template library {t} is not recognized.")
             else:
                 tmp_params |= TemplateLibrary[t]
 
@@ -156,9 +162,10 @@ class ParamConfig:
         # Identify parameters defined on a logarithmic scale for normalisation.
         for tmp_param in tmp_params.keys():
             try:
-                tpp = tmp_params[tmp_param]['prior']
-                tmp_params[tmp_param]['_log_scale'] = \
-                    isinstance(tpp, (ppr.LogNormal, ppr.LogUniform))
+                tpp = tmp_params[tmp_param]["prior"]
+                tmp_params[tmp_param]["_log_scale"] = isinstance(
+                    tpp, (ppr.LogNormal, ppr.LogUniform)
+                )
             except KeyError:  # not all parameters have a prior.
                 continue
 
@@ -169,7 +176,7 @@ class ParamConfig:
         fp: dict[str, pdict_t] = {}
         ap = self.all_params
         for k, v in zip(ap.keys(), ap.values()):
-            if v['isfree']:
+            if v["isfree"]:
                 fp |= {k: v}
         return fp
 
@@ -185,9 +192,11 @@ class ParamConfig:
         fp.sort()
         return fp
 
-    def free_param_lims(self, log_scaled: bool = True,
-                        normalised: bool = False,
-                        ) -> list[tuple[float, float]]:
+    def free_param_lims(
+        self,
+        log_scaled: bool = True,
+        normalised: bool = False,
+    ) -> list[tuple[float, float]]:
         """Get the (prior) limits on the free parameters
 
         Args:
@@ -211,16 +220,16 @@ class ParamConfig:
         for k in ofp:
             tmp = fp[k]
 
-            prior = tmp['prior']
+            prior = tmp["prior"]
             assert isinstance(prior, Prior)
 
             tmp_lim = prior.range
 
-            if log_scaled and tmp['_log_scale']: # uses natural logarithm
+            if log_scaled and tmp["_log_scale"]:  # uses natural logarithm
                 tmp_lim = (math.log(float(tmp_lim[0])), math.log(float(tmp_lim[1])))
 
             if normalised:
-                tmp_lim = (0., 1.)
+                tmp_lim = (0.0, 1.0)
 
             lims.append(tmp_lim)
 
@@ -228,16 +237,16 @@ class ParamConfig:
 
     def log_scale(self) -> list[bool]:
         fp, ks = self.free_params, self.ordered_free_params
-        return [isinstance(fp[k]['prior'], (ppr.LogNormal, ppr.LogUniform))
-                for k in ks]
+        return [isinstance(fp[k]["prior"], (ppr.LogNormal, ppr.LogUniform)) for k in ks]
 
-    def to_torch_priors(self, dtype: t.dtype = None, device: t.device = None
-            ) -> list[Distribution]:
+    def to_torch_priors(
+        self, dtype: t.dtype = None, device: t.device = None
+    ) -> list[Distribution]:
         """Returns the free parameter's priors as pytorch distributions."""
         priors: list[Distribution] = []
         fp, ofp = self.free_params, self.ordered_free_params
         for p in ofp:
-            P = fp[p]['prior']
+            P = fp[p]["prior"]
             assert isinstance(P, Prior)
             priors.append(prospector_to_torch_dist(P, dtype, device))
         return priors
@@ -248,21 +257,19 @@ class ParamConfig:
 
 class LogUniform(tdist.TransformedDistribution):
     def __init__(self, lb, ub):
-        super().__init__(tdist.Uniform(lb.log(), ub.log()),
-                         tdist.ExpTransform())
+        super().__init__(tdist.Uniform(lb.log(), ub.log()), tdist.ExpTransform())
 
 
 class AffineBeta(tdist.TransformedDistribution):
     def __init__(self, alpha, beta, lb, ub):
-        super().__init__(tdist.Beta(alpha, beta),
-                         tdist.AffineTransform(lb, ub-lb))
+        super().__init__(tdist.Beta(alpha, beta), tdist.AffineTransform(lb, ub - lb))
 
 
-def prospector_to_torch_dist(P: Prior, dtype: t.dtype = None,
-                             device: t.device = None) -> Distribution:
-
+def prospector_to_torch_dist(
+    P: Prior, dtype: t.dtype = None, device: t.device = None
+) -> Distribution:
     def _t(args: float) -> Tensor:
-        return t.tensor(args, dtype=dtype, device=device)
+        return t.tensor([float(args)], dtype=dtype, device=device)
 
     if isinstance(P, ppr.Uniform):
         return tdist.Uniform(_t(P.range[0]), _t(P.range[1]))
@@ -272,19 +279,22 @@ def prospector_to_torch_dist(P: Prior, dtype: t.dtype = None,
         return tdist.Normal(_t(P.loc), _t(P.scale))
     elif isinstance(P, ppr.ClippedNormal):
         raise NotImplementedError(
-            'TODO: port spt.inference.utils.TruncatedNormal for use here')
+            "TODO: port spt.inference.utils.TruncatedNormal for use here"
+        )
     elif isinstance(P, ppr.LogUniform):
         return LogUniform(_t(P.range[0]), _t(P.range[1]))
     elif isinstance(P, ppr.Beta):
         return AffineBeta(_t(P.loc), _t(P.scale), _t(P.range[0]), _t(P.range[1]))
     elif isinstance(P, ppr.LogNormal):
         # TODO account for mini and maxi here too?
-        return tdist.LogNormal(_t(P.params['mode']), _t(P.params['sigma']))
+        return tdist.LogNormal(_t(P.params["mode"]), _t(P.params["sigma"]))
     elif isinstance(P, ppr.LogNormalLinpar):
         raise NotImplementedError()
     elif isinstance(P, ppr.SkewNormal):
         raise NotImplementedError()
     elif isinstance(P, ppr.StudentT):
-        return tdist.StudentT(_t(P.params['df']), _t(P.params['mean']), _t(P.params['scale']))
+        return tdist.StudentT(
+            _t(P.params["df"]), _t(P.params["mean"]), _t(P.params["scale"])
+        )
     else:
-        raise ValueError(f'Unexpected distribution {P}')
+        raise ValueError(f"Unexpected distribution {P}")

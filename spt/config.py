@@ -1,4 +1,3 @@
-
 #
 # Copyright (C) 2022 Maxime Robeyns <dev@maximerobeyns.com>
 #
@@ -46,13 +45,13 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 
     # Observations ------------------------------------------------------------
 
-    filters: list[Filter] = FilterLibrary['des']
+    filters: list[Filter] = FilterLibrary["des"]
     build_obs_fn: build_obs_fn_t = spt.modelling.build_obs
 
     # Model parameters --------------------------------------------------------
 
     # Begin with a library of parameters.
-    model_param_templates: list[str] = ['parametric_sfh']
+    model_param_templates: list[str] = ["parametric_sfh"]
 
     # Manually override some properties of the SedModel parameters from the
     # template above. You can also leave out the template entirely and define
@@ -67,14 +66,23 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
     #       for the Uniform distribution (the default if the prior distribution
     #       is omitted)
     model_params: list[Parameter] = [
-        Parameter('zred', 0., 0.1, 4., units='redshift, $z$'),
-        Parameter('mass', 10**6, 10**8, 10**10, priors.LogUniform,
-                  units='$log(M/M_\\odot)$', disp_floor=10**6.),
-        Parameter('logzsol', -2, -0.5, 0.19, units='$\\log (Z/Z_\\odot)$'),
-        Parameter('dust2', 0., 0.05, 2., units='optical depth at 5500AA'),
-        Parameter('tage', 0.001, 13., 13.8, units='Age, Gyr', disp_floor=1.),
+        Parameter("zred", 0.0, 0.1, 4.0, units="redshift, $z$"),
+        Parameter(
+            "mass",
+            10**6,
+            10**8,
+            10**10,
+            priors.LogUniform,
+            units="$log(M/M_\\odot)$",
+            disp_floor=10**6.0,
+        ),
+        Parameter("logzsol", -2, -0.5, 0.19, units="$\\log (Z/Z_\\odot)$"),
+        Parameter("dust2", 0.0, 0.05, 2.0, units="optical depth at 5500AA"),
+        Parameter("tage", 0.001, 13.0, 13.8, units="Age, Gyr", disp_floor=1.0),
         # Parameter('tau', 0.1, 1, 100, priors.LogUniform, units='Gyr^{-1}'),
-        Parameter('tau', 10**(-1), 10**0, 10**2, priors.LogUniform, units='Gyr^{-1}'),
+        Parameter(
+            "tau", 10 ** (-1), 10**0, 10**2, priors.LogUniform, units="Gyr^{-1}"
+        ),
     ]
 
     # Estimate the redshift first ----------------------------------------------
@@ -83,21 +91,21 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
     def ordered_params(self) -> list[str]:
         params = list(self.all_params.keys())
         params.sort()
-        params.insert(0, params.pop(params.index('zred')))
+        params.insert(0, params.pop(params.index("zred")))
         return params
 
     @property
     def ordered_free_params(self) -> list[str]:
         fp = list(self.free_params.keys())
         fp.sort()
-        fp.insert(0, fp.pop(fp.index('zred')))
+        fp.insert(0, fp.pop(fp.index("zred")))
         return fp
 
     build_model_fn: build_model_fn_t = spt.modelling.build_model
 
     # SPS parameters ----------------------------------------------------------
 
-    sps_kwargs: dict[str, Any] = {'zcontinuous': 1}
+    sps_kwargs: dict[str, Any] = {"zcontinuous": 1}
     build_sps_fn: build_sps_fn_t = spt.modelling.build_sps
 
 
@@ -110,7 +118,7 @@ class SamplingParams(ConfigClass):
     n_samples: int = int(10e4)
     concurrency: int = 10
     observation: bool = False  # use real observation as obs... should have no effect
-    save_dir: str = './data/dsets/example/'
+    save_dir: str = "./data/dsets/example/"
     combine_samples: bool = True  # combine partial samples into one big file?
     cmethod: ConcurrencyMethod = ConcurrencyMethod.MPI  # how to multithread
 
@@ -131,7 +139,7 @@ class InferenceParams(inference.InferenceParams):
 
     # Filepath to hdf5 file or directory of files to use as offline dataset
     # dataset_loc: str = SamplingParams().save_dir
-    dataset_loc: str = './data/dsets/example/photometry_sim_10000000.h5'
+    dataset_loc: str = "./data/dsets/example/photometry_sim_10000000.h5"
 
     # Force re-training of an existing model
     retrain_model: bool = False
@@ -140,11 +148,11 @@ class InferenceParams(inference.InferenceParams):
     # set to False, any previous checkpoints are deleted!
     use_existing_checkpoints: bool = True
 
-    ident: str = 'zred1'
+    ident: str = "zred1"
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
-    catalogue_loc: str = './data/catalogues/DES_VIDEO_v1.0.1.fits'
+    catalogue_loc: str = "./data/catalogues/DES_VIDEO_v1.0.1.fits"
 
     # HMC update parameters ----------------------------------------------------
 
@@ -162,14 +170,14 @@ class InferenceParams(inference.InferenceParams):
     # The number of samples to use in each update step.
     # (note: quickly increases memory requirements)
     hmc_update_sim_K: int = 1
-    hmc_update_sim_ident: str = 'update_sim_zred1'  # saving / checkpointing
+    hmc_update_sim_ident: str = "update_sim_zred1"  # saving / checkpointing
     hmc_update_sim_epochs: int = 5
 
     # real data update procedure:
 
     hmc_update_real_K: int = 1
     hmc_update_real_epochs: int = 5
-    hmc_update_real_ident: str = 'update_real_zred1'
+    hmc_update_real_ident: str = "update_real_zred1"
 
 
 # Baseline MCMC fitting parameters (Prospector) -------------------------------
@@ -181,6 +189,7 @@ class FittingParams(ConfigClass):
     initialise the model parameters to sensible values / 'burn' them in in
     preparation for later MCMC sampling.
     """
+
     # Whether or not to do the fitting in the first place?
     do_fitting: bool = True
 
@@ -201,11 +210,11 @@ class EMCEEParams(ConfigClass):
     nmin: int = 10
     pool: ConcurrencyMethod = ConcurrencyMethod.none  # MPI recommended
     workers = 6
-    results_dir = './results/mcmc/emcee_samples/'
+    results_dir = "./results/mcmc/emcee_samples/"
 
 
 class DynestyParams(ConfigClass):
-    nested_method: str = 'rwalk'
+    nested_method: str = "rwalk"
     nlive_init: int = 400
     nlive_batch: int = 200
     nested_dlogz_init: float = 0.05
@@ -216,7 +225,7 @@ class DynestyParams(ConfigClass):
     optimise: bool = True
     min_method: FittingMethod = FittingMethod.LM
     nmin: int = 10
-    results_dir = './results/mcmc/dynesty_samples/'
+    results_dir = "./results/mcmc/dynesty_samples/"
 
 
 # Machine learning inference --------------------------------------------------
@@ -292,9 +301,12 @@ class SANParams(san.SANParams):
 
     likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
-        'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
-        'validate_args': False,
+        "lims": t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+        "K": 10,
+        "mult_eps": 1e-4,
+        "abs_eps": 1e-4,
+        "trunc_eps": 1e-4,
+        "validate_args": False,
     }
 
     # Whether to use layer normalisation
@@ -346,9 +358,12 @@ class SANv2Params(san.SANv2Params):
 
     likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        'lims': t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
-        'K': 5, 'mult_eps': 1e-4, 'abs_eps': 1e-4, 'trunc_eps': 1e-4,
-        'validate_args': False,
+        "lims": t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+        "K": 5,
+        "mult_eps": 1e-4,
+        "abs_eps": 1e-4,
+        "trunc_eps": 1e-4,
+        "validate_args": False,
     }
 
     # Whether to use layer normalisation
@@ -387,7 +402,9 @@ class SANLikelihoodParams(san.SANParams):
     first_module_shape: list[int] = [200, 200]
 
     # shape of subsequent network 'modules'
-    module_shape: list[int] = [200,]
+    module_shape: list[int] = [
+        200,
+    ]
 
     # features passed between sequential blocks
     sequence_features: int = 8
@@ -395,7 +412,9 @@ class SANLikelihoodParams(san.SANParams):
     likelihood: Type[san.SAN_Likelihood] = san.MoG
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        'K': 3, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
+        "K": 3,
+        "mult_eps": 1e-4,
+        "abs_eps": 1e-4,
     }
 
     # Whether to use layer normalisation
@@ -409,6 +428,7 @@ class SANLikelihoodParams(san.SANParams):
 
     # Optimiser (Adam) weight decay
     opt_decay: float = 1e-4
+
 
 class SANv2LikelihoodParams(san.SANv2Params):
     """Parameters for the neural likelihood.
@@ -433,10 +453,14 @@ class SANv2LikelihoodParams(san.SANv2Params):
     cond_dim: int = len(ForwardModelParams().free_params)
 
     # shape of the first network block
-    encoder_layers: list[int] = [512,]
+    encoder_layers: list[int] = [
+        512,
+    ]
 
     # shape of subsequent network 'modules'
-    module_shape: list[int] = [128,]
+    module_shape: list[int] = [
+        128,
+    ]
 
     # features passed between sequential blocks
     sequence_features: int = 8
@@ -444,7 +468,9 @@ class SANv2LikelihoodParams(san.SANv2Params):
     likelihood: Type[san.SAN_Likelihood] = san.MoG
 
     likelihood_kwargs: Optional[dict[str, Any]] = {
-        'K': 3, 'mult_eps': 1e-4, 'abs_eps': 1e-4,
+        "K": 3,
+        "mult_eps": 1e-4,
+        "abs_eps": 1e-4,
     }
 
     # Whether to use layer normalisation
@@ -474,7 +500,7 @@ class LoggingParams(ConfigClass):
     returns all warnings, errors and critical logs).
     """
 
-    file_loc: str = './logs.txt'
+    file_loc: str = "./logs.txt"
 
     log_to_file: bool = True
     file_level: int = logging.INFO
