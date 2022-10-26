@@ -114,6 +114,7 @@ def RWMH_sampler(
     logging_freq: int = 10,
     device: t.device = None,
     dtype: t.dtype = None,
+    quiet: bool = False,
 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
     # WARNING: this sampler is incorrect
     # TODO: create an abstract MCMC sampler (using HMC_sampler as reference)
@@ -130,13 +131,15 @@ def RWMH_sampler(
         burn_chains: the number of chains to use while burning in. Defaults to
             `chains`.
         sigma: variance of Gaussian random step size
+        quiet: whether to supress logs
 
     Returns: either
         - a tensor of shape [N, B, chains, dim] if find_max is False, else
           additionally a tensor of shape [B, dim] with the maximum for each
           batch.
     """
-    logging.info("Beginning RWMH sampling")
+    if not quiet:
+        logging.info("Beginning RWMH sampling")
     start = time.time()
 
     init = initial_pos
@@ -190,7 +193,8 @@ def RWMH_sampler(
                 prog.update(sample_t, advance=10)
 
     duration = time.time() - start
-    logging.info(f"Completed {N * chains:,} samples in {duration:.2f} seconds")
+    if not quiet:
+        logging.info(f"Completed {N * chains:,} samples in {duration:.2f} seconds")
     return samples, max_pos if find_max else samples  # type: ignore
 
 
@@ -399,7 +403,8 @@ def HMC_sampler(
     Returns: a  tensor of shape [N, B, chains, dim] if find_max is False, else
         also a tensor of shape [B, dim] with the maximum for each batch.
     """
-    logging.info("Beginning HMC sampling")
+    if not quiet:
+        logging.info("Beginning HMC sampling")
     start = time.time()
 
     init = initial_pos  # used as a circular buffer for burning in
@@ -467,5 +472,6 @@ def HMC_sampler(
     assert samples.shape == (N, B, chains, dim)
 
     duration = time.time() - start
-    logging.info(f"Completed {N * chains:,} samples in {duration:.2f} seconds")
+    if not quiet:
+        logging.info(f"Completed {N * chains:,} samples in {duration:.2f} seconds")
     return samples, max_pos if find_max else samples  # type: ignore
