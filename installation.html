@@ -258,6 +258,22 @@ locally.</p>
 </pre></div>
 </div>
 </li>
+<li><p>If you plan on running the notebooks (tutorial or otherwise) and you have
+used a virtual environment to install the project, then you should tell
+Jupyter Lab about the environment by running the following once:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">ipykernel</span> <span class="n">install</span> <span class="o">--</span><span class="n">user</span> <span class="o">--</span><span class="n">name</span> <span class="n">agnvenv</span> \
+  <span class="o">--</span><span class="n">display</span><span class="o">-</span><span class="n">name</span> <span class="s2">"SPItorch (Python 3.10)"</span>
+</pre></div>
+</div>
+<p>or equivalently run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kernel</span></code>. You will then be able to select this
+kernel in Jupyter Lab when you run the notebooks.</p>
+<p>To open the notebooks, you can run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>@export SPS_HOME=$(shell pwd)/deps/fsps
+jupyter lab --notebook-dir=.
+</pre></div>
+</div>
+<p>or equivalently run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">lab</span></code>.</p>
+</li>
 </ol>
 <p>If everything worked well, you can now take a look at the <a class="reference external" href="/basic_usage.html">basic usage guide</a>.</p>
 <p>If something went wrong, consult the <a class="reference internal" href="#troubleshooting">Troubleshooting</a> section below for common
