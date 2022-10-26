@@ -24,7 +24,7 @@ Then make sure that you export the following environment variable:
 export SPS_HOME=`pwd`/deps/fsps
 ```
 It is a good idea to either put this in your shell configuration or use
-something like (direnv)[https://direnv.net/] to do this automatically for you.
+something like [direnv](https://direnv.net/) to do this automatically for you.
 
 ## Tutorials
 
@@ -50,6 +50,18 @@ make no assumptions about your virtual environment or shell configuration,
 however before calling any of the targets in the `Makefile`, please ensure that
 the `python` executable in your `PATH` points to the executable/version you want
 to use.
+
+To run the notebooks, you can first install the kernel:
+
+```bash
+make kernel  # only need to run this once
+```
+
+Then you can open the notebooks in Jupyter Lab with:
+
+```bash
+make lab
+```
 
 For more usage information, please see the
 [documentation](https://maximerobeyns.github.io/SPItorch/) or the [tutorial notebooks](https://github.com/MaximeRobeyns/SPItorch/tree/master/tutorial_notebooks).
