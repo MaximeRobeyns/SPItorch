@@ -29,7 +29,7 @@ import torch.nn.functional as F
 from abc import abstractmethod
 from typing import Any, Callable, Optional, Type
 from torch.utils.data import DataLoader
-from torch.distributions import Beta, Categorical, Normal, MixtureSameFamily
+from torch.distributions import Beta, Categorical, Gumbel, Normal, MixtureSameFamily
 from torch.distributions.relaxed_categorical import RelaxedOneHotCategorical
 
 import spt.config as cfg
@@ -459,52 +459,59 @@ class TruncatedMoG(SAN_Likelihood, TruncatedLikelihood):
         return samples.squeeze(gather_dim)
 
 
-# class Categorical(SAN_Likelihood, TruncatedLikelihood):
-#     """A 'C51'-style categorical density estimator which estimates densities as
-#     N 'bins'.
-#     """
-#
-#     def __init__(self, atoms: int, lims: Tensor):
-#         """
-#         Softmax distribution.
-#
-#         Args:
-#             atoms: the number of bins / atoms to use
-#             lims: bounds on the support of the dimensions, of size [D, 2] (min, max)
-#         """
-#         self.atoms = atoms
-#         self._lower, self._upper = lims[..., 0].detach(), lims[..., 1].detach()
-#
-#     support_lim = True
-#     name: str = "Softmax"
-#
-#     @property
-#     def lower(self) -> Tensor:
-#         return self._lower
-#
-#     @property
-#     def upper(self) -> Tensor:
-#         return self._uppser
-#
-#     def to(self, device: t.device = None, dtype: t.dtype = None):
-#         self._lower = self._lower.to(device, dtype).detach()
-#         self._upper = self._upper.to(device, dtype).detach()
-#
-#     def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
-#         # Cast the values to the range [0, self.atoms], and select the correct
-#         # params from the provided logits
-#         raise NotImplementedError
-#
-#     def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
-#         return self.rsample(params)
-#
-#     def rsample(
-#         self, params: Tensor, _: Optional[int] = None, temperature: float = 0.1
-#     ) -> Tensor:
-#         """
-#         Returns reparametrised categorical samples using the Gumbel softmax trick.
-#         """
-#         raise NotImplementedError
+class Softmax(SAN_Likelihood, TruncatedLikelihood):
+    """A 'Softmax' density estimator which estimates the denstieis using
+    classification."""
+
+    def __init__(self, atoms: int, lims: Tensor):
+        """
+        Args:
+            atoms: the number of bins / atoms to use
+            lims: bounds on the support of the dimensions, of size [D, 2] (min, max)
+        """
+        self.atoms = atoms
+        self._lower, self._upper = lims[..., 0].detach(), lims[..., 1].detach()
+
+    support_lim = True
+    name: str = "Softmax"
+
+    @property
+    def lower(self) -> Tensor:
+        return self._lower
+
+    @property
+    def upper(self) -> Tensor:
+        return self._upper
+
+    def n_params(self) -> int:
+        return self.atoms
+
+    def to(self, device: t.device = None, dtype: t.dtype = None):
+        self._lower = self._lower.to(device, dtype).detach()
+        self._upper = self._upper.to(device, dtype).detach()
+
+    def log_prob(self, value: Tensor, params: Tensor) -> Tensor:
+        vs = t.floor(
+            (value - self._lower) / (self._upper - self._lower) * self.atoms
+        ).to(t.int64)
+        ood = t.logical_or(vs <= 0, vs >= self.atoms)
+        vs = t.where(ood, t.ones(1).to(vs.device, vs.dtype), vs)
+        probs = t.softmax(params, -1)
+        lps = Categorical(probs).log_prob(vs)
+        return t.where(ood, t.zeros(1).log().to(lps.device), lps)
+
+    def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
+        return self.rsample(params)
+
+    def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
+        """
+        Returns reparametrised categorical samples using the Gumbel-max trick.
+
+        1611.01144: Eq 1.
+        """
+        gs = Gumbel(0, 1).sample(params.shape).to(params.device, params.dtype)
+        probs = t.softmax(params, -1)
+        return t.argmax(probs.log() + gs, -1)
 
 
 class MoST(SAN_Likelihood):
