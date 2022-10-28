@@ -500,10 +500,10 @@ class Softmax(SAN_Likelihood, TruncatedLikelihood):
         lps = Categorical(probs).log_prob(vs)
         return t.where(ood, t.zeros(1).log().to(lps.device), lps)
 
-    def sample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
-        return self.rsample(params)
+    def sample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
+        return self.rsample(params, d)
 
-    def rsample(self, params: Tensor, _: Optional[int] = None) -> Tensor:
+    def rsample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
         """
         Returns reparametrised categorical samples using the Gumbel-max trick.
 
@@ -511,7 +511,21 @@ class Softmax(SAN_Likelihood, TruncatedLikelihood):
         """
         gs = Gumbel(0, 1).sample(params.shape).to(params.device, params.dtype)
         probs = t.softmax(params, -1)
-        return t.argmax(probs.log() + gs, -1)
+        samples = t.argmax(probs.log() + gs, -1).to(dtype=t.float)
+
+        # To make samples more realistic, we randomly distribute the discrete
+        # samples within each 'bin'. This has no effect on the likelihood.
+        samples = samples + t.rand(samples.shape).to(samples.device, samples.dtype)
+        samples = samples.clamp(
+            t.tensor(0).to(samples.device, samples.dtype),
+            t.tensor(self.atoms + 1).to(samples.device, samples.dtype),
+        )
+
+        # map back onto support
+        samples = (
+            samples / self.atoms * (self._upper[d] - self._lower[d]) + self._lower[d]
+        )
+        return samples
 
 
 class MoST(SAN_Likelihood):
