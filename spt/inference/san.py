@@ -498,7 +498,9 @@ class Softmax(SAN_Likelihood, TruncatedLikelihood):
         vs = t.where(ood, t.ones(1).to(vs.device, vs.dtype), vs)
         probs = t.softmax(params, -1)
         lps = Categorical(probs).log_prob(vs)
-        return t.where(ood, t.zeros(1).log().to(lps.device), lps)
+        # return t.where(ood, t.zeros(1).log().to(lps.device), lps)
+        # return t.where(ood, t.tensor(t.finfo().min).to(lps.device), lps)
+        return t.where(ood, t.tensor(-100).to(lps.device), lps)
 
     def sample(self, params: Tensor, d: Optional[int] = None) -> Tensor:
         return self.rsample(params, d)
@@ -511,15 +513,16 @@ class Softmax(SAN_Likelihood, TruncatedLikelihood):
         """
         gs = Gumbel(0, 1).sample(params.shape).to(params.device, params.dtype)
         probs = t.softmax(params, -1)
-        samples = t.argmax(probs.log() + gs, -1).to(dtype=t.float)
+        samples = t.argmax(probs.log() + gs, -1).float()
 
         # To make samples more realistic, we randomly distribute the discrete
         # samples within each 'bin'. This has no effect on the likelihood.
-        samples = samples + t.rand(samples.shape).to(samples.device, samples.dtype)
-        samples = samples.clamp(
-            t.tensor(0).to(samples.device, samples.dtype),
-            t.tensor(self.atoms + 1).to(samples.device, samples.dtype),
-        )
+
+        # samples = samples + t.rand(samples.shape).to(samples.device, samples.dtype)
+        # samples = samples.clamp(
+        #     t.tensor(0).to(samples.device, samples.dtype),
+        #     t.tensor(self.atoms + 1).to(samples.device, samples.dtype),
+        # )
 
         # map back onto support
         samples = (
