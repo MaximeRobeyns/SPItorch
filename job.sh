@@ -33,7 +33,7 @@ export NCCL_BLOCKING_WAIT=1
 if [[ $(hostname) == bp1-* ]]; then
     module load lang/python/anaconda/3.9.7-2021.12-tensorflow.2.7.0
     eval "$(conda shell.bash hook)"
-    conda activate /user/work/`whoami`/spivenv
+    conda activate /user/work/`whoami`/condaenvs/spivenv
 fi
 
 # 3. Get the master node address

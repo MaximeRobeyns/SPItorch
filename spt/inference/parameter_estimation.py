@@ -29,10 +29,12 @@ from spt.types import Tensor
 from spt.inference.san import SAN
 from spt.load_photometry import get_denorm_theta, load_catalogue
 
+
 def dcn(x: Tensor) -> np.ndarray:
     return x.detach().cpu().numpy()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     """
     - Load a trained model
     - load a catalogue
@@ -54,16 +56,14 @@ if __name__ == '__main__':
     savepath: str = Q.fpath(ip.hmc_update_sim_ident)
     ip.ident = ip.hmc_update_sim_ident
     try:
-        logging.info(
-            f'Attempting to load {Q.name} model from {savepath}')
+        logging.info(f"Attempting to load {Q.name} model from {savepath}")
         Q.load_state_dict(t.load(savepath))
         Q.is_trained = True
-        logging.info('Successfully loaded')
+        logging.info("Successfully loaded")
         Q.to(Q.device, Q.dtype)
         Q.eval()
     except ValueError:
-        logging.info(
-            f'Could not load model at {savepath}. Exiting...')
+        logging.info(f"Could not load model at {savepath}. Exiting...")
         sys.exit()
 
     # Load the catalogue from file --------------------------------------------
@@ -72,19 +72,21 @@ if __name__ == '__main__':
     xs_np = np.log(catalogue[required_cols].values)
     xs = t.from_numpy(xs_np)
 
-    N: int = 1000     # samples per posterior
-    bs: int = 1200    # batch size
+    N: int = 1000  # samples per posterior
+    bs: int = 1200  # batch size
     batches: int = math.ceil((xs.shape[0] / bs))
 
     medians = []
     modes = []
 
-    logging.info(f'{batches} batches to process')
+    logging.info(f"{batches} batches to process")
 
     with t.inference_mode():
         for b in tqdm(range(batches)):
-            batch_xs, _ = Q.preprocess(xs[b*bs: (b+1)*bs], t.empty(0))
-            tmp_sample = Q.forward(batch_xs.repeat_interleave(N, 0)).reshape(-1, N, mp.data_dim)
+            batch_xs, _ = Q.preprocess(xs[b * bs : (b + 1) * bs], t.empty(0))
+            tmp_sample = Q.forward(batch_xs.repeat_interleave(N, 0)).reshape(
+                -1, N, mp.data_dim
+            )
             medians.append(dcn(tmp_sample.median(1)[0]))
             # medians.append(dcn(Q.sample(batch_xs, N).median(-1)[0]))
             modes.append(dcn(Q.mode(batch_xs, N)))
@@ -92,40 +94,43 @@ if __name__ == '__main__':
     median = np.concatenate(medians, 0)
     mode = np.concatenate(modes, 0)
 
-    logging.info(f'median shape: {median.shape}, mode shape: {mode.shape}')
+    logging.info(f"median shape: {median.shape}, mode shape: {mode.shape}")
 
     t.cuda.empty_cache()
 
     values = np.concatenate((median, mode), 1)
-    cat = ip.catalogue_loc.split('/')[-1].split('.')[0]
-    t.save(t.from_numpy(values), f'./results/params/{cat}_{ip.ident}_norm.pt')
-
+    cat = ip.catalogue_loc.split("/")[-1].split(".")[0]
+    t.save(t.from_numpy(values), f"./results/params/{cat}_{ip.ident}_norm.pt")
 
     # Save results to HDF5 ----------------------------------------------------
 
-
-    pcols = [f'{c}_median' for c in fp.ordered_free_params] + \
-            [f'{c}_mode' for c in fp.ordered_free_params]
+    pcols = [f"{c}_median" for c in fp.ordered_free_params] + [
+        f"{c}_mode" for c in fp.ordered_free_params
+    ]
 
     dt = get_denorm_theta(fp)
-    denorm_median = dt(values[:, :mp.data_dim])
-    denorm_mode = dt(values[:, mp.data_dim:])
+    denorm_median = dt(values[:, : mp.data_dim])
+    denorm_mode = dt(values[:, mp.data_dim :])
 
     denorm_params = np.concatenate((denorm_median, denorm_mode), 1)
 
-    save_path = f'./results/params/{cat}_{ip.ident}.h5'
-    with h5py.File(save_path, 'w') as f:
+    save_path = f"./results/params/{cat}_{ip.ident}.h5"
+    with h5py.File(save_path, "w") as f:
         grp = f.create_group(cat)
 
-        phot = grp.create_dataset('photometry', data=catalogue.values)
-        phot.attrs['columns'] = list(catalogue.columns)
-        phot.attrs['description'] = f'''
+        phot = grp.create_dataset("photometry", data=catalogue.values)
+        phot.attrs["columns"] = list(catalogue.columns)
+        phot.attrs[
+            "description"
+        ] = f"""
     Photometric observations from {ip.catalogue_loc}
-'''
+"""
 
-        pars = grp.create_dataset('parameter_estimates', data=denorm_params)
-        pars.attrs['columns'] = pcols
-        pars.attrs['description'] = f'''
+        pars = grp.create_dataset("parameter_estimates", data=denorm_params)
+        pars.attrs["columns"] = pcols
+        pars.attrs[
+            "description"
+        ] = f"""
     Median and mode estimates for the galaxy parameters.
 
     Model parameter configuration used:
@@ -135,4 +140,4 @@ if __name__ == '__main__':
     Free parameter configuration used:
 
     {fp}
-'''
+"""

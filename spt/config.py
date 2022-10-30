@@ -114,8 +114,8 @@ class ForwardModelParams(FilterCheck, ParamConfig, ConfigClass):
 
 class SamplingParams(ConfigClass):
 
-    # n_samples: int = int(10e6)
-    n_samples: int = int(10e4)
+    n_samples: int = int(10e6)
+    # n_samples: int = int(10e4)
     concurrency: int = 10
     observation: bool = False  # use real observation as obs... should have no effect
     save_dir: str = "./data/dsets/example/"
@@ -148,7 +148,7 @@ class InferenceParams(inference.InferenceParams):
     # set to False, any previous checkpoints are deleted!
     use_existing_checkpoints: bool = True
 
-    ident: str = "zred1"
+    ident: str = "discrete_l"
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
@@ -169,15 +169,15 @@ class InferenceParams(inference.InferenceParams):
 
     # The number of samples to use in each update step.
     # (note: quickly increases memory requirements)
-    hmc_update_sim_K: int = 1
-    hmc_update_sim_ident: str = "update_sim_zred1"  # saving / checkpointing
+    hmc_update_sim_K: int = 5
+    hmc_update_sim_ident: str = "update_sim_discrete_l"  # saving / checkpointing
     hmc_update_sim_epochs: int = 5
 
     # real data update procedure:
 
-    hmc_update_real_K: int = 1
+    hmc_update_real_K: int = 5
     hmc_update_real_epochs: int = 5
-    hmc_update_real_ident: str = "update_real_zred1"
+    hmc_update_real_ident: str = "update_real_discrete_l"
 
 
 # Baseline MCMC fitting parameters (Prospector) -------------------------------
@@ -327,13 +327,14 @@ class SANv2Params(san.SANv2Params):
     epochs: int = 10
 
     # batch_size: int = 1024
-    batch_size: int = 5000
+    batch_size: int = 4016
 
-    dtype: t.dtype = t.float32
+    dtype: t.dtype = t.bfloat16
 
     cond_dim: int = len(ForwardModelParams().filters)
 
     # latent_features: int = 250
+    # latent_features: int = 100
     latent_features: int = 100
 
     data_dim: int = len(ForwardModelParams().free_params)
@@ -341,10 +342,11 @@ class SANv2Params(san.SANv2Params):
     # layers in the main encoder block
     # encoder_layers: list[int] = [5000, 5000]
     # encoder_layers: list[int] = [10000, 10000]
-    encoder_layers: list[int] = [7000, 7000]
+    # encoder_layers: list[int] = [7000, 7000]
+    encoder_layers: list[int] = [5000, 5000]
 
     # shape of the sequence modules
-    module_shape: list[int] = [2000]
+    module_shape: list[int] = [512]
 
     # features passed between sequential blocks
     sequence_features: int = 4
@@ -356,14 +358,21 @@ class SANv2Params(san.SANv2Params):
     #     'K': 10, 'mult_eps': 1e-4, 'abs_eps': 1e-4
     # }
 
-    likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+    # Truncated MoG distribution
+    # likelihood: Type[san.SAN_Likelihood] = san.TruncatedMoG
+    # likelihood_kwargs: Optional[dict[str, Any]] = {
+    #     "lims": t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
+    #     "K": 5,
+    #     "mult_eps": 1e-4,
+    #     "abs_eps": 1e-4,
+    #     "trunc_eps": 1e-4,
+    #     "validate_args": False,
+    # }
+
+    likelihood: Type[san.SAN_Likelihood] = san.Softmax
     likelihood_kwargs: Optional[dict[str, Any]] = {
         "lims": t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
-        "K": 5,
-        "mult_eps": 1e-4,
-        "abs_eps": 1e-4,
-        "trunc_eps": 1e-4,
-        "validate_args": False,
+        "atoms": 100,
     }
 
     # Whether to use layer normalisation
@@ -373,7 +382,8 @@ class SANv2Params(san.SANv2Params):
     train_rsample: bool = False
 
     # Optimiser (Adam) learning rate
-    opt_lr: float = 7e-4
+    # opt_lr: float = 7e-4
+    opt_lr: float = 1e-3
 
     # Optimiser (Adam) weight decay
     opt_decay: float = 1e-4
