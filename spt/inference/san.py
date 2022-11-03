@@ -518,7 +518,7 @@ class Softmax(SAN_Likelihood, TruncatedLikelihood):
         # To make samples more realistic, we randomly distribute the discrete
         # samples within each 'bin'. This has no effect on the likelihood.
 
-        # samples = samples + t.rand(samples.shape).to(samples.device, samples.dtype)
+        samples = samples + t.rand(samples.shape).to(samples.device, samples.dtype)
         # samples = samples.clamp(
         #     t.tensor(0).to(samples.device, samples.dtype),
         #     t.tensor(self.atoms + 1).to(samples.device, samples.dtype),

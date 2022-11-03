@@ -148,7 +148,9 @@ class InferenceParams(inference.InferenceParams):
     # set to False, any previous checkpoints are deleted!
     use_existing_checkpoints: bool = True
 
-    ident: str = "discrete_l"
+    # ident: str = "zred1"
+    # ident: str = "discrete_l"
+    ident: str = "discrete_l_rand"
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
@@ -326,27 +328,25 @@ class SANv2Params(san.SANv2Params):
 
     epochs: int = 10
 
-    # batch_size: int = 1024
+    # batch_size: int = 5000
     batch_size: int = 4016
 
+    # dtype: t.dtype = t.float32
     dtype: t.dtype = t.bfloat16
 
     cond_dim: int = len(ForwardModelParams().filters)
 
-    # latent_features: int = 250
-    # latent_features: int = 100
     latent_features: int = 100
 
     data_dim: int = len(ForwardModelParams().free_params)
 
     # layers in the main encoder block
-    # encoder_layers: list[int] = [5000, 5000]
-    # encoder_layers: list[int] = [10000, 10000]
     # encoder_layers: list[int] = [7000, 7000]
     encoder_layers: list[int] = [5000, 5000]
 
     # shape of the sequence modules
-    module_shape: list[int] = [512]
+    # module_shape: list[int] = [2000]
+    module_shape: list[int] = [1000]
 
     # features passed between sequential blocks
     sequence_features: int = 4
@@ -369,10 +369,11 @@ class SANv2Params(san.SANv2Params):
     #     "validate_args": False,
     # }
 
+    # Softmax marginals
     likelihood: Type[san.SAN_Likelihood] = san.Softmax
     likelihood_kwargs: Optional[dict[str, Any]] = {
         "lims": t.tensor(ForwardModelParams().free_param_lims(normalised=True)),
-        "atoms": 100,
+        "atoms": 150,
     }
 
     # Whether to use layer normalisation
