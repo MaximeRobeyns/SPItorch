@@ -31,7 +31,7 @@ from spt.utils import ConfigClass
 from spt.types import Tensor
 
 
-__all__ = ['InferenceParams', 'ModelParams', 'Model', 'model_t']
+__all__ = ["InferenceParams", "ModelParams", "Model", "model_t"]
 
 
 class InferenceParams(ConfigClass):
@@ -57,7 +57,7 @@ class InferenceParams(ConfigClass):
     def dataset_loc(self) -> str:
         """Filepath to the hdf5 file or directory of hdf5 files to use as
         offline dataset"""
-        return ''
+        return ""
 
     @property
     def retrain_model(self) -> bool:
@@ -124,24 +124,28 @@ class InferenceParams(ConfigClass):
     @property
     def hmc_update_sim_K(self) -> int:
         return 1
+
     @property
     def hmc_update_sim_epochs(self) -> int:
         return 5
+
     @property
     def hmc_update_sim_ident(self) -> str:
-        return 'hmc_update_sim'
+        return "hmc_update_sim"
 
     # update procedure on real data
 
     @property
     def hmc_update_real_K(self) -> int:
         return 1
+
     @property
     def hmc_update_real_epochs(self) -> int:
         return 5
+
     @property
     def hmc_update_real_ident(self) -> str:
-        return 'hmc_update_real'
+        return "hmc_update_real"
 
 
 class ModelParams(ConfigClass, ABC):
@@ -218,7 +222,7 @@ class Model(nn.Module, metaclass=ABCMeta):
         self.savepath_cached: str = ""
         self.logging_callbacks = logging_callbacks
 
-        if self.device == t.device('cuda'):
+        if self.device == t.device("cuda"):
             self.to(self.device, self.dtype)
 
     def __init_subclass__(cls):
@@ -245,14 +249,15 @@ class Model(nn.Module, metaclass=ABCMeta):
         """Wraps model description after every 80 characters for more
         ~aesthetic~ plotting / logging.
         """
+
         def _f(self) -> str:
             string = __repr__(self)
-            words = string.split(' ')
+            words = string.split(" ")
             length: int = 0
             for i in range(len(words)):
                 length += len(words[i])
                 if length >= 80:
-                    words[i-1] = words[i-1] + '\n'  # i-1 should be fine...
+                    words[i - 1] = words[i - 1] + "\n"  # i-1 should be fine...
                     length = len(words[i])
             return " ".join(words).replace("\n ", "\n")
 
@@ -268,63 +273,62 @@ class Model(nn.Module, metaclass=ABCMeta):
         Args:
             offline_train: training function from inheriting class
         """
-        def _f(self, loader: DataLoader, ip: InferenceParams, *args,
-               **kwargs) -> None:
+
+        def _f(self, loader: DataLoader, ip: InferenceParams, *args, **kwargs) -> None:
             # Attempt to load the model from disk instead of re-training an
             # identical model.
             savepath: str = self.fpath(ip.ident)
             if not ip.retrain_model:
                 try:
                     logging.info(
-                        f'Attempting to load {self.name} model from {savepath}')
+                        f"Attempting to load {self.name} model from {savepath}"
+                    )
                     self.load_state_dict(t.load(savepath))
                     self.is_trained = True
-                    logging.info(f'Successfully loaded')
+                    logging.info(f"Successfully loaded")
                     # unsure if this is necessary, but for good measure...
                     self.to(self.device, self.dtype)
                     return
                 except:
-                    logging.info(
-                        f'Could not load model at {savepath}. Training...')
+                    logging.info(f"Could not load model at {savepath}. Training...")
 
             # Do the training
             train_func(self, loader, ip, *args, **kwargs)
             self.is_trained = True
-            logging.info(f'Trained {self}.')
+            logging.info(f"Trained {self}.")
 
             # Save the model to disk
             t.save(self.state_dict(), savepath)
-            logging.info(
-                f'Saved {self.name} model as: {savepath}')
+            logging.info(f"Saved {self.name} model as: {savepath}")
+
         return _f
 
-
-    def checkpoint(self, ident: str='') -> None:
+    def checkpoint(self, ident: str = "") -> None:
 
         # remove extension from file
-        checkpoint_dir = '.'.join(self.fpath(ident).split('.')[:-1])
-        assert checkpoint_dir != '', "fpath must contain an extension; `.pt` recommended"
+        checkpoint_dir = ".".join(self.fpath(ident).split(".")[:-1])
+        assert (
+            checkpoint_dir != ""
+        ), "fpath must contain an extension; `.pt` recommended"
 
         # check that directory exists
         if not os.path.isdir(checkpoint_dir):
             os.mkdir(checkpoint_dir)
 
         checkpoints = os.listdir(checkpoint_dir)
-        r = re.compile('checkpoint_(?P<Num>\d+)\.pt$')
+        r = re.compile("checkpoint_(?P<Num>\d+)\.pt$")
         ints = []
         for c in checkpoints:
             match = r.match(c)
-            if match is not None and match.group('Num') is not None:
-                ints.append(int(match.group('Num')))
+            if match is not None and match.group("Num") is not None:
+                ints.append(int(match.group("Num")))
 
         n = 1 if len(ints) == 0 else max(ints) + 1
-        savepath = checkpoint_dir + f'/checkpoint_{n}.pt'
+        savepath = checkpoint_dir + f"/checkpoint_{n}.pt"
 
         # Save the checkpoint to disk
         t.save(self.state_dict(), savepath)
-        logging.info(
-            f'Saved {self.name} checkpoint to {savepath}.')
-
+        logging.info(f"Saved {self.name} checkpoint to {savepath}.")
 
     def attempt_checkpoint_recovery(self, ip: InferenceParams) -> int:
         """Attempts to load the latest checkpoint file, only if
@@ -334,67 +338,71 @@ class Model(nn.Module, metaclass=ABCMeta):
             int: the checkpoint number
         """
 
-        checkpoint_dir = '.'.join(self.fpath(ip.ident).split('.')[:-1])
-        if checkpoint_dir == '':
-            logging.warn(('Will not be able to save a checkpoint with fpath '
-                          'of {self.fpath(ip.ident)}!'))
+        checkpoint_dir = ".".join(self.fpath(ip.ident).split(".")[:-1])
+        if checkpoint_dir == "":
+            logging.warn(
+                (
+                    "Will not be able to save a checkpoint with fpath "
+                    "of {self.fpath(ip.ident)}!"
+                )
+            )
             return 0
 
         if not os.path.isdir(checkpoint_dir) or not ip.use_existing_checkpoints:
-            logging.info(f'No previous checkpoints found at {checkpoint_dir}')
+            logging.info(f"No previous checkpoints found at {checkpoint_dir}")
             return 0
 
         checkpoints = os.listdir(checkpoint_dir)
         if ip.retrain_model and not ip.use_existing_checkpoints:
-            logging.info(f'Removing old checkpoints from {checkpoint_dir}')
-            r = re.compile('checkpoint_\d+\.pt$')
+            logging.info(f"Removing old checkpoints from {checkpoint_dir}")
+            r = re.compile("checkpoint_\d+\.pt$")
             files = [c for c in checkpoints if r.match(c)]
             for c in files:
                 os.remove(os.path.join(checkpoint_dir, c))
             return 0
         else:
             ints = []
-            r = re.compile('checkpoint_(?P<Num>\d+)\.pt$')
+            r = re.compile("checkpoint_(?P<Num>\d+)\.pt$")
             for c in checkpoints:
                 match = r.match(c)
-                if match is not None and match.group('Num') is not None:
-                    ints.append(int(match.group('Num')))
+                if match is not None and match.group("Num") is not None:
+                    ints.append(int(match.group("Num")))
 
         if len(ints) == 0:
-            logging.info(f'No previous checkpoints found at {checkpoint_dir}')
+            logging.info(f"No previous checkpoints found at {checkpoint_dir}")
             return 0
 
         latest_n = max(ints)
         while latest_n > 0:
             try:
-                logging.info(f'Attempting to load checkpoint {latest_n}')
-                cpath = os.path.join(checkpoint_dir, f'checkpoint_{latest_n}.pt')
+                logging.info(f"Attempting to load checkpoint {latest_n}")
+                cpath = os.path.join(checkpoint_dir, f"checkpoint_{latest_n}.pt")
                 self.load_state_dict(t.load(cpath))
                 self.to(self.device, self.dtype)
                 return latest_n
-            except:
-                logging.warning(f'Could not load checkpoint {latest_n}')
+            except Exception as e:
+                logging.warning(f"Could not load checkpoint {latest_n}, {e}")
                 latest_n -= 1
-        logging.warning(f'Checkpoint loading failed')
+        logging.warning(f"Checkpoint loading failed")
         return 0
-
 
     @abstractmethod
     def __repr__(self) -> str:
         """Classes inheriting `Model` _should_ override this method to give a
         more descriptive representation of the model."""
-        return (f'{self.name} trained for {self.epochs} epochs with '
-                f'batch size {self.batch_size}')
+        return (
+            f"{self.name} trained for {self.epochs} epochs with "
+            f"batch size {self.batch_size}"
+        )
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """The name with which to refer to this model (e.g. for saving to disk)
-        """
+        """The name with which to refer to this model (e.g. for saving to disk)"""
         pass
 
     @abstractmethod
-    def fpath(self, ident: str='') -> str:
+    def fpath(self, ident: str = "") -> str:
         """Returns a file path to save the model to, based on its parameters.
 
         An optional identifier, if provided, is appended to the filename before
@@ -418,8 +426,9 @@ class Model(nn.Module, metaclass=ABCMeta):
         return x.to(self.device, self.dtype), y.to(self.device, self.dtype)
 
     @abstractmethod
-    def offline_train(self, train_loader: DataLoader, ip: InferenceParams,
-                      *args, **kwargs) -> None:
+    def offline_train(
+        self, train_loader: DataLoader, ip: InferenceParams, *args, **kwargs
+    ) -> None:
         """Train the model from an offline dataset of (theta, photometry)
         pairs.
 
@@ -430,8 +439,9 @@ class Model(nn.Module, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def hmc_retrain_procedure(self, train_loader: DataLoader, ip: InferenceParams,
-                          *args, **kwargs):
+    def hmc_retrain_procedure(
+        self, train_loader: DataLoader, ip: InferenceParams, *args, **kwargs
+    ):
         """Update procedure, using HMC to improve training data.
 
         Args:
@@ -441,8 +451,9 @@ class Model(nn.Module, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def sample(self, x: Tensor, n_samples: int = 1000, *args: Any,
-               **kwargs: Any) -> Tensor:
+    def sample(
+        self, x: Tensor, n_samples: int = 1000, *args: Any, **kwargs: Any
+    ) -> Tensor:
         """A convenience method for drawing (conditional) samples from p(y | x)
         for a single conditioning point.
 

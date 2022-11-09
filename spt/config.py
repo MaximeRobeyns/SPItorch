@@ -150,7 +150,8 @@ class InferenceParams(inference.InferenceParams):
 
     # ident: str = "zred1"
     # ident: str = "discrete_l"
-    ident: str = "discrete_l_rand"
+    # ident: str = "discrete_l_rand"
+    ident: str = "input_whitening"
 
     # Ensure that the forward model description in ForwardModelParams matches
     # the data below (e.g. number / types of filters etc)
@@ -158,7 +159,7 @@ class InferenceParams(inference.InferenceParams):
 
     # HMC update parameters ----------------------------------------------------
 
-    hmc_update_batch_size: int = 700  # HMC update consumes more memory than ML
+    hmc_update_batch_size: int = 500  # HMC update consumes more memory than ML
 
     hmc_update_N: int = 5  # number of HMC steps
     hmc_update_C: int = 100  # number of chains to use in HMC
@@ -172,14 +173,14 @@ class InferenceParams(inference.InferenceParams):
     # The number of samples to use in each update step.
     # (note: quickly increases memory requirements)
     hmc_update_sim_K: int = 5
-    hmc_update_sim_ident: str = "update_sim_discrete_l"  # saving / checkpointing
+    hmc_update_sim_ident: str = f"update_sim_{ident}"  # saving / checkpointing
     hmc_update_sim_epochs: int = 5
 
     # real data update procedure:
 
     hmc_update_real_K: int = 5
     hmc_update_real_epochs: int = 5
-    hmc_update_real_ident: str = "update_real_discrete_l"
+    hmc_update_real_ident: str = f"update_real_{ident}"
 
 
 # Baseline MCMC fitting parameters (Prospector) -------------------------------
@@ -326,7 +327,7 @@ class SANParams(san.SANParams):
 
 class SANv2Params(san.SANv2Params):
 
-    epochs: int = 10
+    epochs: int = 4
 
     # batch_size: int = 5000
     batch_size: int = 4016

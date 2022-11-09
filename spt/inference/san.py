@@ -721,6 +721,11 @@ class SAN(Model):
         self.layer_norm = mp.layer_norm
         self.train_rsample = mp.train_rsample
 
+        # normalisation parameters
+        self.register_buffer("x_mean", t.zeros(self.mp.cond_dim))
+        self.register_buffer("x_std", t.zeros(self.mp.cond_dim))
+        self.register_buffer("train_iters", t.zeros(1))
+
         if mp.limits is not None:
             if not isinstance(mp.limits, t.Tensor):
                 self.limits = t.tensor(mp.limits, dtype=mp.dtype, device=mp.device)
@@ -764,6 +769,27 @@ class SAN(Model):
             f"and {self.sequence_features} features between blocks trained "
             f"for {self.epochs} epochs with batches of size {self.batch_size}"
         )
+
+    def preprocess(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+        x, y = x.to(self.device, self.dtype), y.to(self.device, self.dtype)
+
+        if self.training:
+            if self.train_iters.item() == 0:
+                self.x_mean, self.x_std = x.mean(0), x.std(0)
+
+            # update the mean and standard deviation of the training batches seen
+            self.train_iters += 1
+            self.x_mean = self.x_mean + (x.mean(0) - self.x_mean) / self.train_iters
+            self.x_std = self.x_std + (x.std(0) - self.x_std) / self.train_iters
+
+        if self.train_iters.item() > 0:
+            x = (x - self.x_mean) / self.x_std
+        elif not self.training:
+            raise RuntimeWarning(
+                "Input values have not been normalised! Please train model first."
+            )
+
+        return x, y
 
     def fpath(self, ident: str = "") -> str:
         """Returns a file path to save the model to, based on its parameters."""
@@ -1253,7 +1279,8 @@ class SANv2(SAN):
         hs = [self.cond_dim] + self.encoder_layers + [self.latent_features]
         for i, (j, k) in enumerate(zip(hs[:-1], hs[1:])):
             self.encoder.add_module(name=f"E{i}", module=nn.Linear(j, k))
-            if self.layer_norm:
+            # NOTE: the i > 0 condition here corresponds to the "no_ln_1" model label
+            if self.layer_norm:  # and i > 0:
                 self.encoder.add_module(name=f"E_LN{i}", module=nn.LayerNorm(k))
             self.encoder.add_module(name=f"E_A{i}", module=nn.ReLU())
         self.encoder.to(self.device, self.dtype)
